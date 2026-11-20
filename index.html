@@ -65,7 +65,7 @@ label.rng input:disabled{opacity:.4}
 output{font-variant-numeric:tabular-nums;color:var(--mute);white-space:nowrap}
 label.chk{display:flex;align-items:center;gap:10px;min-height:44px}
 label.chk input{width:22px;height:22px;accent-color:var(--hot)}
-.sw{display:flex;gap:6px;overflow-x:auto;overflow-y:visible;padding:26px calc(50% - 80px) 30px;scroll-snap-type:x mandatory;margin:0 -4px;perspective:760px;perspective-origin:50% 35%;scrollbar-width:none}
+.sw{display:flex;gap:6px;overflow-x:auto;overflow-y:visible;padding:26px calc(50% - 54px) 30px;scroll-snap-type:x mandatory;margin:0 -4px;perspective:760px;perspective-origin:50% 35%;scrollbar-width:none}
 .sw::-webkit-scrollbar{display:none}
 .pack{flex:none;width:160px;margin:0 -26px;padding:0;border:0;background:none;scroll-snap-align:center;position:relative;z-index:0;transform-style:preserve-3d;
  transform:rotateY(var(--ry,0deg)) translateZ(var(--tz,0px));transition:transform .12s ease-out}
@@ -106,6 +106,9 @@ label.chk input{width:22px;height:22px;accent-color:var(--hot)}
 .card h1{font:600 clamp(26px,6.5vw,38px)/1.06 'Chakra Petch',sans-serif;margin:0 0 10px;text-wrap:balance}
 .card p{color:var(--mute);margin:0 0 16px}
 .opts{display:grid;gap:10px}
+.go{display:block;width:100%;min-height:52px;margin-top:4px;border:0;border-radius:12px;background:var(--hot);color:#16181b;font:600 18px/1.2 'Chakra Petch',sans-serif}
+.link{display:block;margin:12px auto 0;min-height:44px;padding:0 12px;border:0;background:none;color:var(--mute);font-size:15px}
+#start .card{overflow:hidden}
 .opts button{display:grid;text-align:left;gap:2px;padding:12px 14px;min-height:56px;border-radius:12px;border:1px solid var(--line);background:#23262a}
 .opts button:hover{border-color:var(--hot)}
 .opts b{font:600 17px/1.2 'Chakra Petch',sans-serif}
@@ -176,13 +179,22 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
 
   <section id="start">
     <div class="card">
-      <h1>Drive a tiny RC car across your real floor</h1>
-      <p><small style="color:var(--hot)">Version 13</small><br>Pick what the car drives on. Steer bottom-left, pedals bottom-right, tap the floor to drop cones.</p>
+      <div id="step1">
+        <h1>Pick your racer</h1>
+        <p><small style="color:var(--hot)">Version 14</small><br>Swipe through the packs and tap one to choose it.</p>
+        <div class="sw" id="sw0"></div>
+        <button id="goFloor" class="go">Next: choose your floor</button>
+      </div>
+      <div id="step2" hidden>
+      <h1>Where are you driving?</h1>
+      <p>Steer bottom-left, pedals bottom-right, tap the floor to drop cones. You can swap cars any time in Setup.</p>
       <div class="opts">
         <button id="oXR" hidden><b>Room-scale AR</b><span>Anchors the car to your real floor with WebXR</span></button>
         <button id="oLive"><b>Live camera</b><span>Your camera feed, tracked with phone motion</span></button>
         <button id="oPhoto"><b>Photo of your floor</b><span>Snap or pick one, then line up the grid</span></button>
         <button id="oStudio"><b>Studio floor</b><span>No camera — a practice pad</span></button>
+      </div>
+      <button id="backCar" class="link">← Back to cars</button>
       </div>
     </div>
   </section>
@@ -388,7 +400,7 @@ function selectCar(i){
  WB=(CUR.wb[0]-CUR.wb[1])*SC;WR=CUR.wr*SC;TRK=CUR.trk*SC;AXL=-CUR.wb[1]*SC;HIT=CUR.L*.4*SC+.012;
  blob.scale.set(CUR.W*1.6,CUR.L*1.25,1);pool.position.z=CUR.L/2+.55;spot.position.set(0,CUR.head[1]*SC,CUR.L/2*SC);spot.target.position.set(0,0,CUR.L/2*SC+.5);
  document.querySelectorAll('.pack').forEach(b=>{const on=+b.dataset.i===i;if(!on&&b.classList.contains('on')){const sh=carFrames(+b.dataset.i,1),x=b.querySelector('canvas').getContext('2d');x.clearRect(0,0,FW,FH);if(sh)x.drawImage(sh,0,0)}b.classList.toggle('on',on)});
- spinK=0;if(!$('sheet').hidden)centerPack(true)}
+ spinK=0;centerPack(true)}
 
 // blister-pack picker: each car rendered in a small offscreen 3D view
 let TR=null,TS=null,TC=null;const FW=260,FH=190,NF=36,sheets={};
@@ -404,23 +416,30 @@ function carFrames(i,n){const key=i+':'+n;if(sheets[key])return sheets[key];if(!
  TS.remove(g);return sheets[key]=sh}
 const STAT=v=>Math.round(clamp((v-.75)/.5,0,1)*100);
 const light=c=>{const n=parseInt(c.slice(1),16);return(.3*(n>>16)+.59*(n>>8&255)+.11*(n&255))/255>.62};
+const PICKERS=['sw0','sw'];
 function buildPicker(){
- $('sw').innerHTML=CARS.map((sp,i)=>`<button class="pack" data-i="${i}" style="--c:${sp.color};color:${light(sp.color)?'#16181b':'#fff'}" aria-label="${sp.name}">
+ const html=CARS.map((sp,i)=>`<button class="pack" data-i="${i}" style="--c:${sp.color};color:${light(sp.color)?'#16181b':'#fff'}" aria-label="${sp.name}">
   <span class="tilt"><span class="hang"></span><span class="brandp">AR RC <i>micro racers</i></span>
   <span class="blister">${[4,8,12].map(z=>`<span class="wall" style="--z:${z}px"></span>`).join('')}
    <span class="bubble"><canvas width="${FW}" height="${FH}"></canvas><span class="scale">1:32</span></span></span>
   <b>${sp.name}</b><small>${sp.tag}</small>
   <span class="stats">${[['Speed',sp.v],['Accel',sp.a],['Grip',sp.g]].map(([n,v])=>`<span>${n}<i style="width:${STAT(v)}%"></i></span>`).join('')}</span></span></button>`).join('');
- document.querySelectorAll('.pack canvas').forEach((cv,i)=>{const sh=carFrames(i,1);if(sh)cv.getContext('2d').drawImage(sh,0,0)});
- $('sw').addEventListener('scroll',flow,{passive:true});flow()}
+ for(const id of PICKERS){const el=$(id);el.innerHTML=html;
+  el.querySelectorAll('canvas').forEach((cv,i)=>{const sh=carFrames(i,1);if(sh)cv.getContext('2d').drawImage(sh,0,0)});
+  el.addEventListener('scroll',()=>flow(el),{passive:true});
+  el.addEventListener('click',e=>{const b=e.target.closest('.pack');if(b)selectCar(+b.dataset.i)})}}
 // coverflow: cards turn and recede the further they are from the middle
-function flow(){const sw=$('sw'),r=sw.getBoundingClientRect(),cx=r.left+r.width/2;
+function flow(sw){const r=sw.getBoundingClientRect(),cx=r.left+r.width/2;
  for(const p of sw.children){const b=p.getBoundingClientRect(),d=clamp((b.left+b.width/2-cx)/b.width,-2,2);
-  p.style.setProperty('--ry',(-d*32).toFixed(1)+'deg');p.style.setProperty('--tz',(-Math.abs(d)*46).toFixed(0)+'px');p.style.setProperty('--gl',d.toFixed(2));p.style.zIndex=p.classList.contains('on')?3:String(2-Math.round(Math.abs(d)))}}
-function centerPack(smooth){const p=document.querySelector('.pack.on');if(p)p.scrollIntoView({inline:'center',block:'nearest',behavior:smooth?'smooth':'auto'});flow()}
+  p.style.setProperty('--ry',(-d*32).toFixed(1)+'deg');p.style.setProperty('--tz',(-Math.abs(d)*46).toFixed(0)+'px');p.style.setProperty('--gl',d.toFixed(2));
+  p.style.zIndex=p.classList.contains('on')?3:String(2-Math.round(Math.abs(d)))}}
+// the picker currently on screen: the opening screen first, otherwise Setup
+function livePicker(){if(!$('start').hidden&&!$('step1').hidden)return $('sw0');if(!$('sheet').hidden)return $('sw');return null}
+function centerPack(smooth){const el=livePicker();if(!el)return;const p=el.querySelector('.pack.on');
+ if(p)el.scrollTo({left:p.offsetLeft+p.offsetWidth/2-el.clientWidth/2,behavior:smooth?'smooth':'auto'});flow(el)}
 // the selected car turns inside its bubble while the setup sheet is open
 let spinK=0;
-setInterval(()=>{if($('sheet').hidden)return;const p=document.querySelector('.pack.on');if(!p)return;const i=+p.dataset.i,sh=carFrames(i,NF);if(!sh)return;
+setInterval(()=>{const el=livePicker();if(!el)return;const p=el.querySelector('.pack.on');if(!p)return;const i=+p.dataset.i,sh=carFrames(i,NF);if(!sh)return;
  spinK=(spinK+1)%NF;const cv=p.querySelector('canvas'),x=cv.getContext('2d');x.clearRect(0,0,FW,FH);x.drawImage(sh,spinK*FW,0,FW,FH,0,0,FW,FH)},70);
 
 /* ---------- skid marks ---------- */
@@ -747,7 +766,6 @@ $('bSet').onclick=()=>{$('sheet').hidden=!$('sheet').hidden;if(!$('sheet').hidde
 $('bReset').onclick=reset;
 function toggleLights(){P.lights=!P.lights;store.lights=P.lights;save();const b=$('bLights');b.classList.toggle('on',P.lights);b.setAttribute('aria-pressed',P.lights)}
 $('bLights').onclick=toggleLights;$('bLights').classList.toggle('on',P.lights);$('bLights').setAttribute('aria-pressed',P.lights);
-$('sw').addEventListener('click',e=>{const b=e.target.closest('.pack');if(b)selectCar(+b.dataset.i)});
 function seg(id,key,cur,fn){const el=$(id);const mark=()=>el.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.v==String(P[key])));
  P[key]=cur;mark();el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;P[key]=isNaN(+b.dataset.v)?b.dataset.v:+b.dataset.v;mark();fn&&fn()})}
 seg('spdSeg','vmax',P.vmax,()=>{store.vmax2=P.vmax;save()});
@@ -772,6 +790,9 @@ function size(){if(renderer.xr.isPresenting)return;const w=stage.clientWidth,h=s
  renderer.setSize(w,h,false);cam.aspect=w/h;cam.fov=P.F;cam.updateProjectionMatrix()}
 const ro=new ResizeObserver(size);ro.observe(stage);size();
 buildPicker();selectCar(P.color);setSource('studio');
+$('goFloor').onclick=()=>{$('step1').hidden=true;$('step2').hidden=false};
+$('backCar').onclick=()=>{$('step2').hidden=true;$('step1').hidden=false;requestAnimationFrame(()=>centerPack(false))};
+requestAnimationFrame(()=>centerPack(false));
 let last=0,hudT=0,h3T=0,errShown=false;
 function frameErr(e){console.error(e);if(!errShown){errShown=true;toast('Something went wrong: '+(e&&e.message||e),8000)}}
 renderer.setAnimationLoop((t,frame)=>{
