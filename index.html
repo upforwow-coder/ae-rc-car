@@ -146,7 +146,7 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
   <section id="start">
     <div class="card">
       <h1>Drive a tiny RC car across your real floor</h1>
-      <p>Pick what the car drives on. Steer bottom-left, pedals bottom-right, tap the floor to drop cones.</p>
+      <p><small style="color:var(--hot)">Version 5</small><br>Pick what the car drives on. Steer bottom-left, pedals bottom-right, tap the floor to drop cones.</p>
       <div class="opts">
         <button id="oXR" hidden><b>Room-scale AR</b><span>Anchors the car to your real floor with WebXR</span></button>
         <button id="oXR2" hidden><b>Room-scale AR — simple mode</b><span>Use this if room-scale AR shows a black screen</span></button>
@@ -523,7 +523,7 @@ async function startXR(simple){
   hideStart();$('sheet').hidden=true;setSource('xr');world.visible=false;placed=false;
   const vs=await ses.requestReferenceSpace('viewer');XR.vs=vs;hitSrc=await ses.requestHitTestSource({space:vs});
   hud3.visible=simple;
-  $('badge').textContent=simple?'Room AR (simple)':'Room-scale AR';
+  $('badge').textContent=simple?'Room AR (simple)':`Camera mode: ${ses.environmentBlendMode||'unknown'} · Overlay: ${ses.domOverlayState?ses.domOverlayState.type:'none'}`;
   ses.addEventListener('select',onSelect);
   ses.addEventListener('end',()=>{hitSrc=null;XR.ses=null;XR.simple=false;hud3.visible=false;input.s=input.gas=input.brake=0;renderer.xr.enabled=false;world.visible=true;world.position.set(0,0,0);
    document.documentElement.classList.remove('xr');
