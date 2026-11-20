@@ -146,7 +146,7 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
   <section id="start">
     <div class="card">
       <h1>Drive a tiny RC car across your real floor</h1>
-      <p><small style="color:var(--hot)">Version 5</small><br>Pick what the car drives on. Steer bottom-left, pedals bottom-right, tap the floor to drop cones.</p>
+      <p><small style="color:var(--hot)">Version 6</small><br>Pick what the car drives on. Steer bottom-left, pedals bottom-right, tap the floor to drop cones.</p>
       <div class="opts">
         <button id="oXR" hidden><b>Room-scale AR</b><span>Anchors the car to your real floor with WebXR</span></button>
         <button id="oXR2" hidden><b>Room-scale AR — simple mode</b><span>Use this if room-scale AR shows a black screen</span></button>
@@ -192,7 +192,9 @@ const world=new T.Group();scene.add(world);
  sg.setAttribute('color',new T.Float32BufferAttribute(cols,3));
  es.add(new T.Mesh(sg,new T.MeshBasicMaterial({vertexColors:true,side:T.BackSide})));
  [[6,2,0,7,3,3],[4,4,-7,3,-2,2],[3,5,6,2,-5,1.6]].forEach(([w,h,x,y,z,b])=>{const m=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({color:new T.Color(b,b,b),side:T.DoubleSide}));m.position.set(x,y,z);m.lookAt(0,0,0);es.add(m)});
- scene.environment=pm.fromScene(es,.02).texture}
+ scene.environment=pm.fromScene(es,.02).texture;pm.dispose()}
+// building the reflections resets the clear colour to opaque black; make the 3D layer see-through again
+renderer.setClearColor(0x000000,0);
 scene.add(new T.HemisphereLight(0xffffff,0x5a544c,.35));
 const sun=new T.DirectionalLight(0xffffff,1.1);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
 Object.assign(sun.shadow.camera,{left:-1,right:1,top:1,bottom:-1,near:.3,far:5});sun.shadow.bias=-.0002;sun.shadow.normalBias=.001;
@@ -519,7 +521,7 @@ async function startXR(simple){
  try{const init={requiredFeatures:['hit-test']};
   if(!simple){init.optionalFeatures=['dom-overlay'];init.domOverlay={root:$('hud')}}
   const ses=await navigator.xr.requestSession('immersive-ar',init);XR.ses=ses;XR.simple=simple;
-  prevSrc=src==='xr'?'studio':src;xrT=performance.now();xrHit=false;renderer.xr.enabled=true;renderer.xr.setReferenceSpaceType('local');await renderer.xr.setSession(ses);
+  renderer.setClearColor(0x000000,0);prevSrc=src==='xr'?'studio':src;xrT=performance.now();xrHit=false;renderer.xr.enabled=true;renderer.xr.setReferenceSpaceType('local');await renderer.xr.setSession(ses);
   hideStart();$('sheet').hidden=true;setSource('xr');world.visible=false;placed=false;
   const vs=await ses.requestReferenceSpace('viewer');XR.vs=vs;hitSrc=await ses.requestHitTestSource({space:vs});
   hud3.visible=simple;
