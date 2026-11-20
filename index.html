@@ -160,6 +160,7 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
         <button data-src="track">Dirt track</button>
         <button data-src="studio">Studio</button>
         <button data-src="xr" id="xrBtn" hidden>Room AR</button>
+        <button data-src="xrt" id="xrtBtn" hidden>AR dirt track</button>
       </div>
       <h3>Match the floor</h3>
       <label class="rng">Phone height above floor <output id="oH"></output><input type="range" id="rH" min="0.2" max="2" step="0.05"></label>
@@ -183,7 +184,7 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
     <div class="card">
       <div id="step1">
         <h1>Pick your racer</h1>
-        <p><small style="color:var(--hot)">Version 15</small><br>Swipe through the packs and tap one to choose it.</p>
+        <p><small style="color:var(--hot)">Version 16</small><br>Swipe through the packs and tap one to choose it.</p>
         <div class="sw" id="sw0"></div>
         <button id="goFloor" class="go">Next: choose your floor</button>
       </div>
@@ -192,6 +193,7 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
       <p>Steer bottom-left, pedals bottom-right, tap the floor to drop cones. You can swap cars any time in Setup.</p>
       <div class="opts">
         <button id="oXR" hidden><b>Room-scale AR</b><span>Anchors the car to your real floor with WebXR</span></button>
+        <button id="oXRT" hidden><b>Dirt track in your room (AR)</b><span>A compact course with jumps on your real floor — about 3 × 2.5 m</span></button>
         <button id="oLive"><b>Live camera</b><span>Your camera feed, tracked with phone motion</span></button>
         <button id="oPhoto"><b>Photo of your floor</b><span>Snap or pick one, then line up the grid</span></button>
         <button id="oTrack"><b>Dirt track</b><span>Hills, whoops, gap jumps and a lap timer</span></button>
@@ -468,7 +470,8 @@ function clearCones(){cones.forEach(c=>world.remove(c.g));cones=[];updCones()}
 function updCones(){const d=cones.filter(c=>c.down).length;$('cones').textContent=cones.length?`Cones down ${d} / ${cones.length}`:'Tap the floor to drop cones'}
 
 /* ---------- dirt track: looping course with hills, whoops and gap jumps ---------- */
-const TR_N=720,TW=.55,TRACK={ready:false,group:null,mesh:null,px:[],pz:[],tx:[],tz:[],s:[],seg:[],len:0,colliders:[]};
+// two versions: a full-size park (virtual) and a compact course placed on the real floor in room-scale AR
+const TR_N=720,TRACK={ready:false,cfg:{k:1,tw:.55,hk:1,ar:false},group:null,mesh:null,px:[],pz:[],tx:[],tz:[],s:[],seg:[],len:0,colliders:[]};
 const sstep=k=>{k=clamp(k,0,1);return k*k*(3-2*k)};
 const wrap=d=>((d%1)+1.5)%1-.5;
 function jump(s,a,b,H,c,d){
@@ -478,14 +481,14 @@ function jump(s,a,b,H,c,d){
  return 0}
 function prof(s){let h=.06*Math.exp(-((wrap(s-.12)/.018)**2))+.12*Math.exp(-((wrap(s-.64)/.028)**2));
  if(s>.44&&s<.56){const k=(s-.44)/.12;h+=.026*Math.sqrt(Math.sin(k*Math.PI))*(.5-.5*Math.cos(k*Math.PI*10))}
- return h+jump(s,.215,.245,.11,.29,.335)+jump(s,.795,.82,.12,.86,.905)}
-function grassH(x,z){return .012*(Math.sin(x*1.7)*Math.cos(z*1.3)+.5*Math.sin(x*3.1+z*2.3))}
-(function centerline(){const X=[],Z=[];
- for(let i=0;i<TR_N;i++){const t=i/TR_N*Math.PI*2;X.push(3.4*Math.cos(t)+.35*Math.cos(3*t));Z.push(2.4*Math.sin(t)+.7*Math.sin(2*t))}
- let L=0;const cum=[0];for(let i=0;i<TR_N;i++){const j=(i+1)%TR_N,l=Math.hypot(X[j]-X[i],Z[j]-Z[i]);TRACK.seg.push(l);L+=l;cum.push(L)}
- TRACK.len=L;for(let i=0;i<TR_N;i++){const a=(i+TR_N-1)%TR_N,b=(i+1)%TR_N,dx=X[b]-X[a],dz=Z[b]-Z[a],l=Math.hypot(dx,dz);
-  TRACK.px.push(X[i]);TRACK.pz.push(Z[i]);TRACK.tx.push(dx/l);TRACK.tz.push(dz/l);TRACK.s.push(cum[i]/L)}})();
-// nearest point on the centreline: returns segment index, along-track fraction s and signed sideways offset d
+ return(h+jump(s,.215,.245,.11,.29,.335)+jump(s,.795,.82,.12,.86,.905))*TRACK.cfg.hk}
+function grassH(x,z){return TRACK.cfg.ar?0:.012*(Math.sin(x*1.7)*Math.cos(z*1.3)+.5*Math.sin(x*3.1+z*2.3))}
+function centerline(k){const P=TRACK,X=[],Z=[];P.px=[];P.pz=[];P.tx=[];P.tz=[];P.s=[];P.seg=[];
+ for(let i=0;i<TR_N;i++){const t=i/TR_N*Math.PI*2;X.push(k*(3.4*Math.cos(t)+.35*Math.cos(3*t)));Z.push(k*(2.4*Math.sin(t)+.7*Math.sin(2*t)))}
+ let L=0;const cum=[0];for(let i=0;i<TR_N;i++){const j=(i+1)%TR_N,l=Math.hypot(X[j]-X[i],Z[j]-Z[i]);P.seg.push(l);L+=l;cum.push(L)}
+ P.len=L;for(let i=0;i<TR_N;i++){const a=(i+TR_N-1)%TR_N,b=(i+1)%TR_N,dx=X[b]-X[a],dz=Z[b]-Z[a],l=Math.hypot(dx,dz);
+  P.px.push(X[i]);P.pz.push(Z[i]);P.tx.push(dx/l);P.tz.push(dz/l);P.s.push(cum[i]/L)}}
+// nearest point on the centreline: segment index, along-track fraction s and signed sideways offset d
 function nearest(x,z,hint){const P=TRACK,N=TR_N;let bi=0,bd=1e9;
  const test=i=>{i=(i+N)%N;const dx=x-P.px[i],dz=z-P.pz[i],q=dx*dx+dz*dz;if(q<bd){bd=q;bi=i}};
  if(hint!=null&&hint>=0)for(let k=-24;k<=24;k++)test(hint+k);
@@ -494,57 +497,65 @@ function nearest(x,z,hint){const P=TRACK,N=TR_N;let bi=0,bd=1e9;
  if(u<0){i=(i+N-1)%N;u+=P.seg[i]}
  const dx2=x-P.px[i],dz2=z-P.pz[i];u=clamp(dx2*P.tx[i]+dz2*P.tz[i],0,P.seg[i]);
  const s=(P.s[i]+u/P.len)%1,d=dx2*P.tz[i]-dz2*P.tx[i];return{i,s,d}}
-function trackInfo(x,z,hint){const r=nearest(x,z,hint),ad=Math.abs(r.d),hp=prof(r.s),e0=TW/2,e1=e0+.1,e2=e0+.55;let h;
- if(ad<=e0)h=hp;else if(ad<e1)h=hp+.025*Math.sin((ad-e0)/(e1-e0)*Math.PI);else{const k=sstep((ad-e1)/(e2-e1));h=hp*(1-k)+grassH(x,z)*k}
- r.h=h;r.off=ad>e0+.04;return r}
-const onTrack=()=>src==='track'&&TRACK.ready;
+const edges=()=>{const e0=TRACK.cfg.tw/2,e1=e0+.1;return[e0,e1,TRACK.cfg.ar?e1+.09:e0+.55]};
+function heightAt(s,ad,x,z){const[e0,e1,e2]=edges(),hp=prof(s);
+ if(ad<=e0)return hp;if(ad<e1)return hp+.025*Math.sin((ad-e0)/(e1-e0)*Math.PI);const k=sstep((ad-e1)/(e2-e1));return hp*(1-k)+grassH(x,z)*k}
+function trackInfo(x,z,hint){const r=nearest(x,z,hint),ad=Math.abs(r.d);r.h=heightAt(r.s,ad,x,z);r.off=ad>TRACK.cfg.tw/2+.04;return r}
+let XRtrack=false;
+const onTrack=()=>TRACK.ready&&((src==='track'&&!TRACK.cfg.ar)||(src==='xr'&&XRtrack&&TRACK.cfg.ar));
 function groundAt(x,z,hint){return onTrack()?trackInfo(x,z,hint).h:0}
+const GRAV=()=>onTrack()?5:9.8;   // floatier jumps on the dirt
 
-function buildTrack(){
- const G=new T.Group();TRACK.group=G;world.add(G);PAR=G;
- // terrain mesh with painted dirt, berms and grass
- const SZ=11,SEG=220,geo=new T.PlaneGeometry(SZ,SZ,SEG,SEG);geo.rotateX(-Math.PI/2);
- const pos=geo.attributes.position,col=new Float32Array(pos.count*3),c=new T.Color();
- for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i),r=trackInfo(x,z),ad=Math.abs(r.d);pos.setY(i,r.h);
-  const n=.5+.5*Math.sin(x*23.1+z*17.7)*Math.cos(x*9.3-z*13.1),e0=TW/2;
-  let rr,gg,bb;
-  if(ad<=e0){const rut=Math.exp(-(((ad-.085)/.025)**2))*.12,lift=Math.min(.12,prof(r.s)*1.1);
-   rr=.66-rut+lift+n*.06;gg=.46-rut+lift*.8+n*.05;bb=.27-rut*.6+lift*.5+n*.03}
-  else if(ad<e0+.1){rr=.56+n*.05;gg=.38+n*.04;bb=.22+n*.03}
-  else{const k=sstep((ad-e0-.1)/.25);const dR=.6,dG=.42,dB=.24,gR=.42+n*.08,gG=.74+n*.08,gB=.3+n*.05;rr=dR+(gR-dR)*k;gg=dG+(gG-dG)*k;bb=dB+(gB-dB)*k}
-  c.setRGB(clamp(rr,0,1),clamp(gg,0,1),clamp(bb,0,1),T.SRGBColorSpace);col[i*3]=c.r;col[i*3+1]=c.g;col[i*3+2]=c.b}
- geo.setAttribute('color',new T.BufferAttribute(col,3));geo.computeVertexNormals();
- const mesh=new T.Mesh(geo,toon(0xffffff,{vertexColors:true}));mesh.receiveShadow=true;G.add(mesh);TRACK.mesh=mesh;
- const far=new T.Mesh(new T.PlaneGeometry(90,90),toon(0x6fbf4a));far.rotation.x=-Math.PI/2;far.position.y=-.03;far.receiveShadow=true;G.add(far);
- const P=TRACK,at=(i,side,off)=>{i=(i+TR_N)%TR_N;return[P.px[i]+P.tz[i]*side*off,P.pz[i]-P.tx[i]*side*off]};
- const yaw=i=>Math.atan2(P.tx[i],P.tz[i]);
- const outSide=i=>(P.px[i]*P.tz[i]-P.pz[i]*P.tx[i])>0?1:-1; // which side faces away from the infield
- // start / finish: checkered line and an arch with a banner
+function dirtColor(s,ad,x,z,c){const n=.5+.5*Math.sin(x*23.1+z*17.7)*Math.cos(x*9.3-z*13.1),[e0,e1,e2]=edges();let rr,gg,bb;
+ if(ad<=e0){const rut=Math.exp(-(((ad-e0*.31)/.025)**2))*.12,lift=Math.min(.12,prof(s)*1.1);rr=.66-rut+lift+n*.06;gg=.46-rut+lift*.8+n*.05;bb=.27-rut*.6+lift*.5+n*.03}
+ else if(ad<e1||TRACK.cfg.ar){rr=.56+n*.05;gg=.38+n*.04;bb=.22+n*.03}
+ else{const k=sstep((ad-e1)/.25),gR=.42+n*.08,gG=.74+n*.08,gB=.3+n*.05;rr=.6+(gR-.6)*k;gg=.42+(gG-.42)*k;bb=.24+(gB-.24)*k}
+ c.setRGB(clamp(rr,0,1),clamp(gg,0,1),clamp(bb,0,1),T.SRGBColorSpace)}
+function setupTrack(ar){
+ if(TRACK.ready&&TRACK.cfg.ar===ar)return;
+ if(TRACK.group){world.remove(TRACK.group);TRACK.group.traverse(o=>{if(o.geometry&&o.geometry!==tyreGeo)o.geometry.dispose()})}
+ TRACK.cfg=ar?{k:.42,tw:.42,hk:.8,ar:true}:{k:1,tw:.55,hk:1,ar:false};TRACK.colliders=[];TRACK.ready=false;centerline(TRACK.cfg.k);
+ const G=new T.Group();TRACK.group=G;world.add(G);PAR=G;const c=new T.Color();let mesh;
+ if(!ar){// full park: a terrain grid painted dirt → berm → grass
+  const SZ=11,SEG=220,geo=new T.PlaneGeometry(SZ,SZ,SEG,SEG);geo.rotateX(-Math.PI/2);const pos=geo.attributes.position,col=new Float32Array(pos.count*3);
+  for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i),r=nearest(x,z),ad=Math.abs(r.d);pos.setY(i,heightAt(r.s,ad,x,z));dirtColor(r.s,ad,x,z,c);col.set([c.r,c.g,c.b],i*3)}
+  geo.setAttribute('color',new T.BufferAttribute(col,3));geo.computeVertexNormals();mesh=new T.Mesh(geo,toon(0xffffff,{vertexColors:true}));
+  const far=new T.Mesh(new T.PlaneGeometry(90,90),toon(0x6fbf4a));far.rotation.x=-Math.PI/2;far.position.y=-.03;far.receiveShadow=true;G.add(far)}
+ else{// room AR: only a dirt ribbon with berms and a skirt down to the real floor
+  const[,,e2]=edges(),L=17,P=TRACK,pos=[],col=[],idx=[];
+  for(let i=0;i<=TR_N;i++){const ii=i%TR_N;for(let j=0;j<L;j++){const d=-e2+2*e2*j/(L-1),x=P.px[ii]+P.tz[ii]*d,z=P.pz[ii]-P.tx[ii]*d,ad=Math.abs(d);
+    pos.push(x,j===0||j===L-1?0:heightAt(P.s[ii],ad,x,z),z);dirtColor(P.s[ii],ad,x,z,c);col.push(c.r,c.g,c.b)}}
+  for(let i=0;i<TR_N;i++)for(let j=0;j<L-1;j++){const a=i*L+j,b=a+L;idx.push(a,b,a+1,a+1,b,b+1)}
+  const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));geo.setAttribute('color',new T.Float32BufferAttribute(col,3));geo.setIndex(idx);geo.computeVertexNormals();
+  mesh=new T.Mesh(geo,toon(0xffffff,{vertexColors:true,side:T.DoubleSide}))}
+ mesh.receiveShadow=true;mesh.castShadow=ar;G.add(mesh);TRACK.mesh=mesh;
+ const P=TRACK,tw=TRACK.cfg.tw,at=(i,side,off)=>{i=(i+TR_N)%TR_N;return[P.px[i]+P.tz[i]*side*off,P.pz[i]-P.tx[i]*side*off]};
+ const yaw=i=>Math.atan2(P.tx[i],P.tz[i]),outSide=i=>(P.px[i]*P.tz[i]-P.pz[i]*P.tx[i])>0?1:-1;
+ const gH=(x,z)=>{const r=nearest(x,z);return heightAt(r.s,Math.abs(r.d),x,z)};
+ // start / finish
  const chk=decalTex('sfchk',256,32,(g)=>{for(let i=0;i<32;i++)for(let j=0;j<4;j++){g.fillStyle=(i+j)%2?'#1c1d21':'#fff';g.fillRect(i*8,j*8,8,8)}});
- const line=new T.Mesh(new T.PlaneGeometry(TW,.06),new T.MeshBasicMaterial({map:chk,polygonOffset:true,polygonOffsetFactor:-3,toneMapped:false}));
- line.rotation.set(-Math.PI/2,0,yaw(0)+Math.PI/2,'YXZ');line.rotation.set(-Math.PI/2,0,0);line.rotation.order='YXZ';line.rotation.y=yaw(0);line.position.set(P.px[0],prof(0)+.002,P.pz[0]);G.add(line);
+ const line=new T.Mesh(new T.PlaneGeometry(tw,.06),new T.MeshBasicMaterial({map:chk,polygonOffset:true,polygonOffsetFactor:-3,toneMapped:false}));
+ line.rotation.order='YXZ';line.rotation.set(-Math.PI/2,yaw(0),0);line.position.set(P.px[0],prof(0)+.002,P.pz[0]);G.add(line);
  const ban=decalTex('banner',256,48,(g)=>{g.fillStyle='#ff5a1f';g.fillRect(0,0,256,48);g.fillStyle='#16181b';g.font='bold 30px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('START · FINISH',128,26)});
- for(const sd of[1,-1]){const[x,z]=at(0,sd,TW/2+.09);part(new T.CylinderGeometry(.012,.012,.34,10),M.white,x,.17,z,G)}
- const arch=part(new T.BoxGeometry(TW+.22,.06,.02),[M.dark,M.dark,M.dark,M.dark,new T.MeshBasicMaterial({map:ban,toneMapped:false}),new T.MeshBasicMaterial({map:ban,toneMapped:false})],P.px[0],.33,P.pz[0],G,0,yaw(0),0,false);
- // tyre walls on the outside of the course, flags at the jumps, hay bales beside the ramps
- const tyreG=new T.TorusGeometry(.028,.013,8,18);tyreG.rotateX(Math.PI/2);const tw=toon(0xffffff),tr=toon(0xe23a2a);
- for(let k=0;k<30;k++){const i=k*24,sd=outSide(i);const[x,z]=at(i,sd,TW/2+.23),h=groundAt(x,z);
-  for(let l=0;l<3;l++)part(tyreG,(k+l)%2?tw:tr,x,h+.013+l*.026,z,G);TRACK.colliders.push({x,z,r:.05})}
+ for(const sd of[1,-1]){const[x,z]=at(0,sd,tw/2+.09);part(new T.CylinderGeometry(.012,.012,.34,10),M.white,x,.17,z,G)}
+ const bm=new T.MeshBasicMaterial({map:ban,toneMapped:false});part(new T.BoxGeometry(tw+.22,.06,.02),[M.dark,M.dark,M.dark,M.dark,bm,bm],P.px[0],.33,P.pz[0],G,0,yaw(0),0,false);
+ // tyre walls, hay bales and flags
+ const tw2=toon(0xffffff),tr=toon(0xe23a2a),n=ar?20:30;
+ for(let k=0;k<n;k++){const i=Math.round(k*TR_N/n),sd=outSide(i);const[x,z]=at(i,sd,tw/2+(ar?.16:.23)),h=ar?0:gH(x,z);
+  for(let l=0;l<3;l++)part(tyreGeo,(k+l)%2?tw2:tr,x,h+.013+l*.026,z,G);TRACK.colliders.push({x,z,r:.05})}
  const hay=toon(0xf2c94c);
- for(const s0 of[.235,.815]){const i=Math.round(s0*TR_N);for(const sd of[1,-1]){const[x,z]=at(i,sd,TW/2+.17);rb(.11,.055,.06,hay,x,groundAt(x,z)+.03,z,G,0,yaw(i),0,.01);TRACK.colliders.push({x,z,r:.06})}
-  const[fx,fz]=at(i,outSide(i),TW/2+.12);part(new T.CylinderGeometry(.004,.004,.24,6),M.dark,fx,groundAt(fx,fz)+.12,fz,G);
-  const fl=new T.Shape();fl.moveTo(0,0);fl.lineTo(.09,-.025);fl.lineTo(0,-.05);
-  const flag=new T.Mesh(new T.ShapeGeometry(fl),toon(0xffd200,{side:T.DoubleSide}));flag.position.set(fx,groundAt(fx,fz)+.24,fz);flag.rotation.y=yaw(i);G.add(flag)}
- // cartoon trees scattered in the grass
- let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
- const trunk=toon(0x8a5a35),leaf=[toon(0x3f9d3a),toon(0x58b947),toon(0x2f8a4a)];
- for(let n=0,tries=0;n<28&&tries<400;tries++){const x=(rnd()-.5)*10,z=(rnd()-.5)*10,r=nearest(x,z);if(Math.abs(r.d)<1)continue;
-  const h=grassH(x,z),sc=.75+rnd()*.6;part(new T.CylinderGeometry(.016*sc,.02*sc,.12*sc,8),trunk,x,h+.06*sc,z,G);
-  if(rnd()>.5){part(new T.ConeGeometry(.09*sc,.2*sc,10),leaf[n%3],x,h+.2*sc,z,G);part(new T.ConeGeometry(.07*sc,.15*sc,10),leaf[(n+1)%3],x,h+.29*sc,z,G)}
-  else part(new T.SphereGeometry(.1*sc,14,10),leaf[n%3],x,h+.2*sc,z,G);
-  TRACK.colliders.push({x,z,r:.03*sc});n++}
- G.traverse(o=>{if(o.isMesh&&o!==mesh&&o!==far&&o.material!==inkMat)o.castShadow=true});
+ for(const s0 of[.235,.815]){const i=Math.round(s0*TR_N);for(const sd of[1,-1]){const[x,z]=at(i,sd,tw/2+(ar?.13:.17));rb(.11,.055,.06,hay,x,(ar?0:gH(x,z))+.03,z,G,0,yaw(i),0,.01);TRACK.colliders.push({x,z,r:.06})}
+  const[fx,fz]=at(i,outSide(i),tw/2+.12),fh=ar?0:gH(fx,fz);part(new T.CylinderGeometry(.004,.004,.24,6),M.dark,fx,fh+.12,fz,G);
+  const fl=new T.Shape();fl.moveTo(0,0);fl.lineTo(.09,-.025);fl.lineTo(0,-.05);const flag=new T.Mesh(new T.ShapeGeometry(fl),toon(0xffd200,{side:T.DoubleSide}));flag.position.set(fx,fh+.24,fz);flag.rotation.y=yaw(i);G.add(flag)}
+ // cartoon trees in the park only
+ if(!ar){let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;const trunk=toon(0x8a5a35),leaf=[toon(0x3f9d3a),toon(0x58b947),toon(0x2f8a4a)];
+  for(let m=0,tries=0;m<28&&tries<400;tries++){const x=(rnd()-.5)*10,z=(rnd()-.5)*10,r=nearest(x,z);if(Math.abs(r.d)<1)continue;
+   const h=grassH(x,z),sc=.75+rnd()*.6;part(new T.CylinderGeometry(.016*sc,.02*sc,.12*sc,8),trunk,x,h+.06*sc,z,G);
+   if(rnd()>.5){part(new T.ConeGeometry(.09*sc,.2*sc,10),leaf[m%3],x,h+.2*sc,z,G);part(new T.ConeGeometry(.07*sc,.15*sc,10),leaf[(m+1)%3],x,h+.29*sc,z,G)}
+   else part(new T.SphereGeometry(.1*sc,14,10),leaf[m%3],x,h+.2*sc,z,G);TRACK.colliders.push({x,z,r:.03*sc});m++}}
+ G.traverse(o=>{if(o.isMesh&&o!==mesh&&o.material!==inkMat)o.castShadow=true});
  PAR=null;TRACK.ready=true}
+const tyreGeo=new T.TorusGeometry(.028,.013,8,18);tyreGeo.rotateX(Math.PI/2);
 function startPose(){const P=TRACK;return{x:P.px[4],z:P.pz[4],h:Math.atan2(P.tx[4],P.tz[4])}}
 
 /* ---------- state & camera ---------- */
@@ -563,7 +574,7 @@ const chasePos=new T.Vector3(),look=new T.Vector3();
 function chaseCam(dt){const fx=Math.sin(S.h),fz=Math.cos(S.h);chasePos.set(S.x-fx*.3,S.y+.15,S.z-fz*.3);chasePos.y=Math.max(chasePos.y,groundAt(chasePos.x,chasePos.z)+.06);
  cam.position.lerp(chasePos,1-Math.exp(-4*dt));look.set(S.x+fx*.1,S.y+.02,S.z+fz*.1);cam.lookAt(look)}
 function updRing(){ring.geometry.dispose();ring.geometry=new T.RingGeometry(C.R-.006,C.R,160).rotateX(-Math.PI/2);
- ring.position.set(C.x,.001,C.z);grid.position.set(C.x,0,C.z);grid.visible=ring.visible=P.grid&&src!=='track'}
+ ring.position.set(C.x,.001,C.z);grid.position.set(C.x,0,C.z);grid.visible=ring.visible=P.grid&&src!=='track'&&!XRtrack}
 function recenter(){
  if(src==='track'){C.x=0;C.z=0;C.R=5;updRing();return}
  if(src==='xr'||P.view==='chase'){updRing();return}
@@ -611,14 +622,14 @@ function step(dt){
  if(!S.air){
  if(TI){// gravity pulls along the slope; grass is slow and slippery
   const e=.05,gx=(groundAt(S.x+e,S.z,S.ti)-groundAt(S.x-e,S.z,S.ti))/(2*e),gz=(groundAt(S.x,S.z+e,S.ti)-groundAt(S.x,S.z-e,S.ti))/(2*e);
-  const sl=gx*fx+gz*fz;vF-=9.8*sl/Math.sqrt(1+sl*sl)*dt;const nl=Math.hypot(gx,1,gz);S.tnx=-gx/nl;S.tny=1/nl;S.tnz=-gz/nl;
+  const sl=gx*fx+gz*fz;vF-=GRAV()*sl/Math.sqrt(1+sl*sl)*dt;const nl=Math.hypot(gx,1,gz);S.tnx=-gx/nl;S.tny=1/nl;S.tnz=-gz/nl;
   if(TI.off)vF*=Math.exp(-1.4*dt)}
  if(gas){if(vF<0)vF+=8*gas*dt;else{const top=VM*(.2+.8*gas);vF+=6*CUR.a*gas*(1-vF/top)*dt}}
  if(brake){if(vF>.08)vF-=9*brake*dt;else if(vF>-VM*.4*brake)vF-=3*brake*dt;else vF*=Math.exp(-1.6*dt)}
  if(!gas&&!brake)vF*=Math.exp(-1.6*dt);
  vF-=vF*Math.abs(vF)*.06*dt;vF=clamp(vF,-VM*.4,VM);
- const maxS=Math.min(.6,Math.atan(WB*11/Math.max(.01,vF*vF)));
- S.steer+=(-s*maxS-S.steer)*(1-Math.exp(-12*dt));
+ const dirt=!!TI,maxS=Math.min(dirt?.42:.6,Math.atan(WB*(dirt?7:11)/Math.max(.01,vF*vF)));
+ S.steer+=(-s*maxS-S.steer)*(1-Math.exp(-(dirt?4.5:12)*dt));
  vL*=Math.exp(-Math.max(3,15*CUR.g-Math.abs(vF)*Math.abs(s)*3.2/CUR.g)*dt);
  S.vx=fx*vF+lx*vL;S.vz=fz*vF+lz*vL;
  S.h+=vF*Math.tan(S.steer)/WB*dt;
@@ -626,10 +637,10 @@ function step(dt){
  S.x+=S.vx*dt;S.z+=S.vz*dt;
  // vertical: follow the ground, launch off lips, fall under gravity, land
  const gNew=groundAt(S.x,S.z,S.ti);
- if(!S.air){const ball=S.y+S.vy*dt-4.9*dt*dt;
-  if(onTrack()&&S.vy>.3&&gNew<ball-.003){S.air=true;S.y=ball;S.vy-=9.8*dt}
+ if(!S.air){const g=GRAV(),ball=S.y+S.vy*dt-.5*g*dt*dt;
+  if(onTrack()&&S.vy>.3&&gNew<ball-.003){S.air=true;S.y=ball;S.vy-=g*dt}
   else{S.vy=clamp((gNew-S.y)/dt,-4,4);S.y=gNew}}
- else{S.vy-=9.8*dt;S.y+=S.vy*dt;if(S.y<=gNew){const imp=-S.vy;S.air=false;S.y=gNew;S.vy=0;S.squash=Math.min(.012,imp*.006);if(imp>.5)thud('wall',imp/3.5)}}
+ else{S.vy-=GRAV()*dt;S.y+=S.vy*dt;if(S.y<=gNew){const imp=-S.vy;S.air=false;S.y=gNew;S.vy=0;S.squash=Math.min(.012,imp*.006);if(imp>.5)thud('wall',imp/3.5)}}
  for(const o of(onTrack()?TRACK.colliders:[])){const cx=S.x-o.x,cz=S.z-o.z,cd=Math.hypot(cx,cz),rr=o.r+.045;
   if(cd<rr&&S.y<groundAt(o.x,o.z)+.08){const nx=cx/(cd||1),nz=cz/(cd||1);S.x=o.x+nx*rr;S.z=o.z+nz*rr;const vn=S.vx*nx+S.vz*nz;
    if(vn<0){S.vx-=1.6*vn*nx;S.vz-=1.6*vn*nz;if(vn<-.4)thud('wall',-vn/2)}}}
@@ -732,13 +743,13 @@ function thud(kind,str){if(!ac||!A.bus||!P.snd)return;const t=ac.currentTime,con
 /* ---------- floor sources ---------- */
 function setSource(s){
  const wasTrack=src==='track';src=s;video.style.display=s==='live'?'block':'none';photo.style.display=s==='photo'?'block':'none';
- if(s==='track'&&!TRACK.ready)buildTrack();if(TRACK.group)TRACK.group.visible=s==='track';stage.classList.toggle('track',s==='track');
+ if(s==='track')setupTrack(false);if(TRACK.group)TRACK.group.visible=s==='track'||(s==='xr'&&XRtrack);stage.classList.toggle('track',s==='track');
  if(s==='track'&&P.view!=='chase')document.querySelector('#viewSeg button[data-v="chase"]').click();
  if(wasTrack&&s!=='track'&&P.view==='chase')document.querySelector('#viewSeg button[data-v="fixed"]').click();
  studio.visible=s==='studio';ground.visible=s!=='studio'&&s!=='track';
  if(s!=='live'&&stream){stream.getTracks().forEach(t=>t.stop());stream=null}
  a0=null;stage.classList.toggle('studio',s==='studio');
- $('badge').textContent={live:'Live camera',photo:'Photo floor',studio:'Studio floor',xr:'Room-scale AR',track:'Dirt track'}[s];
+ $('badge').textContent={live:'Live camera',photo:'Photo floor',studio:'Studio floor',xr:XRtrack?'AR dirt track':'Room-scale AR',track:'Dirt track'}[s];
  document.querySelectorAll('#srcSeg button').forEach(b=>b.classList.toggle('on',b.dataset.src===s));
  if(s!=='xr')reset()}
 const hideStart=()=>{$('start').hidden=true};
@@ -766,10 +777,10 @@ reticle.add(new T.Mesh(new T.RingGeometry(.03,.034,48).rotateX(-Math.PI/2),retM)
 reticle.add(new T.Mesh(new T.CircleGeometry(.004,16).rotateX(-Math.PI/2),retM));
 reticle.matrixAutoUpdate=false;reticle.visible=false;scene.add(reticle);
 (async()=>{let ok=false;try{ok=!!navigator.xr&&await navigator.xr.isSessionSupported('immersive-ar')}catch(e){}
- if(ok)['oXR','xrBtn'].forEach(id=>$(id).hidden=false)})();
+ if(ok)['oXR','xrBtn','oXRT','xrtBtn'].forEach(id=>$(id).hidden=false)})();
 function releaseCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}video.srcObject=null}
-async function startXR(simple){
- simple=simple===true;audioOn();
+async function startXR(simple,withTrack){
+ simple=simple===true;XRtrack=withTrack===true;if(XRtrack)setupTrack(true);audioOn();
  // Android lets only one user of the camera at a time: free it before ARCore asks for it
  const wasLive=src==='live';releaseCamera();
  // Chrome paints the page over the camera in AR, so the page itself must be see-through
@@ -781,19 +792,21 @@ async function startXR(simple){
   hideStart();$('sheet').hidden=true;setSource('xr');world.visible=false;placed=false;
   const vs=await ses.requestReferenceSpace('viewer');XR.vs=vs;hitSrc=await ses.requestHitTestSource({space:vs});
   hud3.visible=simple;
-  $('badge').textContent=simple?'Room AR (simple)':`Camera mode: ${ses.environmentBlendMode||'unknown'} · Overlay: ${ses.domOverlayState?ses.domOverlayState.type:'none'}`;
+  $('badge').textContent=XRtrack?'AR dirt track':'Room-scale AR';
   ses.addEventListener('select',onSelect);
-  ses.addEventListener('end',()=>{hitSrc=null;XR.ses=null;XR.simple=false;hud3.visible=false;input.s=input.gas=input.brake=0;renderer.xr.enabled=false;world.visible=true;world.position.set(0,0,0);
+  ses.addEventListener('end',()=>{hitSrc=null;XR.ses=null;XR.simple=false;XRtrack=false;hud3.visible=false;input.s=input.gas=input.brake=0;renderer.xr.enabled=false;world.visible=true;world.position.set(0,0,0);
    document.documentElement.classList.remove('xr');
    if(prevSrc==='live')startLive();else setSource(prevSrc);size()});
-  toast(`AR running — camera mode: ${ses.environmentBlendMode||'unknown'}, overlay: ${ses.domOverlayState?ses.domOverlayState.type:'none'}. Sweep the phone slowly over the floor, then tap to place the car.`,8000)}
+  toast(XRtrack?'Find an open patch of floor (about 3 × 2.5 m), then tap to place the track':'Sweep the phone slowly over the floor, then tap to place the car',6000)}
  catch(e){document.documentElement.classList.remove('xr');toast('Room-scale AR could not start: '+(e&&e.message?e.message:'not supported on this device')+'. Check that Google Play Services for AR is installed and up to date.',7000);
   if(wasLive)startLive()}}
 let xrT=0,xrHit=false;
 function onSelect(ev){if(!reticle.visible)return;const p=new T.Vector3().setFromMatrixPosition(reticle.matrix);
  if(XR.simple&&placed){const t=touchPos(ev.frame,ev.inputSource);if(!t||t[1]>.3)return;   // only taps above the controls move the car
   world.position.copy(p);world.updateMatrixWorld();putCar(0,0,S.h);return}
- if(!placed){world.position.copy(p);world.updateMatrixWorld();world.visible=true;placed=true;C.x=0;C.z=0;C.R=2;updRing();putCar(0,0,0);clearSkids();toast('Drive! Tap the floor to drop cones.')}
+ if(!placed){world.position.copy(p);world.updateMatrixWorld();world.visible=true;placed=true;C.x=0;C.z=0;S.y=0;S.vy=0;S.air=false;S.ti=-1;S.lapT0=null;
+  if(XRtrack){C.R=TRACK.cfg.k*5;updRing();const sp=startPose();putCar(sp.x,sp.z,sp.h);S.y=groundAt(sp.x,sp.z);toast('Track placed — follow the dirt and hit the jumps!')}
+  else{C.R=2;updRing();putCar(0,0,0);toast('Drive! Tap the floor to drop cones.')}clearSkids()}
  else{world.updateMatrixWorld();const l=world.worldToLocal(p);addCone(l.x,l.z)}}
 
 /* ---------- room AR, simple mode: controls drawn in 3D, read from screen touches ---------- */
@@ -882,9 +895,9 @@ canvas.addEventListener('pointerup',e=>{
  const h=ray.intersectObject(onTrack()?TRACK.mesh:ground);if(!h.length)return;const p=world.worldToLocal(h[0].point.clone());
  if(Math.hypot(p.x-C.x,p.z-C.z)>C.R){toast('Drop cones inside the play ring',1800);return}addCone(p.x,p.z)});
 
-$('oXR').onclick=()=>startXR(false);$('oLive').onclick=startLive;$('oTrack').onclick=startTrack;$('oPhoto').onclick=pickPhoto;$('oStudio').onclick=startStudio;
+$('oXR').onclick=()=>startXR(false);$('oXRT').onclick=()=>startXR(false,true);$('oLive').onclick=startLive;$('oTrack').onclick=startTrack;$('oPhoto').onclick=pickPhoto;$('oStudio').onclick=startStudio;
 $('srcSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
- ({live:startLive,photo:pickPhoto,studio:startStudio,track:startTrack,xr:()=>startXR(false)})[b.dataset.src]()});
+ ({live:startLive,photo:pickPhoto,studio:startStudio,track:startTrack,xr:()=>startXR(false),xrt:()=>startXR(false,true)})[b.dataset.src]()});
 $('bSet').onclick=()=>{$('sheet').hidden=!$('sheet').hidden;if(!$('sheet').hidden)requestAnimationFrame(()=>centerPack(false))};$('bClose').onclick=()=>{$('sheet').hidden=true};
 $('bReset').onclick=reset;
 function toggleLights(){P.lights=!P.lights;store.lights=P.lights;save();const b=$('bLights');b.classList.toggle('on',P.lights);b.setAttribute('aria-pressed',P.lights)}
