@@ -81,6 +81,9 @@ label.chk input{width:22px;height:22px;accent-color:var(--hot)}
 :focus-visible{outline:3px solid #fff;outline-offset:2px}
 [hidden]{display:none!important}
 #hud:xr-overlay{background:transparent!important}
+html.xr,html.xr body{background:transparent!important}
+html.xr #stage{display:none!important}
+html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:none}
 @media (orientation:landscape) and (max-height:520px){.steer{height:84px}.gas{height:128px}.brake{height:100px}.sub{display:none}#sheet{max-height:80vh}}
 @media (prefers-reduced-motion:reduce){#toast,.pedal{transition:none}}
 </style>
@@ -509,15 +512,18 @@ async function startXR(){
  audioOn();
  // Android lets only one user of the camera at a time: free it before ARCore asks for it
  const wasLive=src==='live';releaseCamera();
+ // Chrome paints the page over the camera in AR, so the page itself must be see-through
+ document.documentElement.classList.add('xr');
  try{const ses=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay'],domOverlay:{root:$('hud')}});
   prevSrc=src==='xr'?'studio':src;xrT=performance.now();xrHit=false;renderer.xr.enabled=true;renderer.xr.setReferenceSpaceType('local');await renderer.xr.setSession(ses);
   hideStart();$('sheet').hidden=true;setSource('xr');world.visible=false;placed=false;
   const vs=await ses.requestReferenceSpace('viewer');hitSrc=await ses.requestHitTestSource({space:vs});
   ses.addEventListener('select',onSelect);
   ses.addEventListener('end',()=>{hitSrc=null;renderer.xr.enabled=false;world.visible=true;world.position.set(0,0,0);
+   document.documentElement.classList.remove('xr');
    if(prevSrc==='live')startLive();else setSource(prevSrc);size()});
   toast('Sweep the phone slowly over the floor, then tap to place the car',6000)}
- catch(e){toast('Room-scale AR could not start: '+(e&&e.message?e.message:'not supported on this device')+'. Check that Google Play Services for AR is installed and up to date.',7000);
+ catch(e){document.documentElement.classList.remove('xr');toast('Room-scale AR could not start: '+(e&&e.message?e.message:'not supported on this device')+'. Check that Google Play Services for AR is installed and up to date.',7000);
   if(wasLive)startLive()}}
 let xrT=0,xrHit=false;
 function onSelect(){if(!reticle.visible)return;const p=new T.Vector3().setFromMatrixPosition(reticle.matrix);
