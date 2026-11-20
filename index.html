@@ -19,6 +19,7 @@ LAYOUT: full-bleed stage; speed dial on top, steering grip bottom-left, pedals b
 html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--ink);font:16px/1.45 Barlow,system-ui,sans-serif;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #stage{position:fixed;inset:0;background:#000}
 #stage.studio{background:linear-gradient(#2c3136,#1d2023)}
+#stage.track{background:linear-gradient(#6fbaf5,#bfe4ff 55%,#e6f5ff)}
 #stage>*{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 #cam,#photo{display:none}
 #gl{touch-action:none}
@@ -156,6 +157,7 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
       <div class="seg" id="srcSeg">
         <button data-src="live">Live camera</button>
         <button data-src="photo">Photo</button>
+        <button data-src="track">Dirt track</button>
         <button data-src="studio">Studio</button>
         <button data-src="xr" id="xrBtn" hidden>Room AR</button>
       </div>
@@ -181,7 +183,7 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
     <div class="card">
       <div id="step1">
         <h1>Pick your racer</h1>
-        <p><small style="color:var(--hot)">Version 14</small><br>Swipe through the packs and tap one to choose it.</p>
+        <p><small style="color:var(--hot)">Version 15</small><br>Swipe through the packs and tap one to choose it.</p>
         <div class="sw" id="sw0"></div>
         <button id="goFloor" class="go">Next: choose your floor</button>
       </div>
@@ -192,6 +194,7 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
         <button id="oXR" hidden><b>Room-scale AR</b><span>Anchors the car to your real floor with WebXR</span></button>
         <button id="oLive"><b>Live camera</b><span>Your camera feed, tracked with phone motion</span></button>
         <button id="oPhoto"><b>Photo of your floor</b><span>Snap or pick one, then line up the grid</span></button>
+        <button id="oTrack"><b>Dirt track</b><span>Hills, whoops, gap jumps and a lap timer</span></button>
         <button id="oStudio"><b>Studio floor</b><span>No camera — a practice pad</span></button>
       </div>
       <button id="backCar" class="link">← Back to cars</button>
@@ -387,7 +390,7 @@ const car=new T.Group();world.add(car);
 const model=new T.Group();model.scale.setScalar(SC);car.add(model);
 let CUR=CARS[0],body=null,wheels=[],fronts=[],heads=[],tails=[],revs=[],flash=[];
 const blobT=decalTex('blob',64,64,(g)=>{const r=g.createRadialGradient(32,32,2,32,32,32);r.addColorStop(0,'rgba(0,0,0,.75)');r.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=r;g.fillRect(0,0,64,64)});
-const blob=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:blobT,transparent:true,depthWrite:false,opacity:.55}));blob.rotation.x=-Math.PI/2;blob.position.y=.002;model.add(blob);
+const blob=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:blobT,transparent:true,depthWrite:false,opacity:.55}));const cblob=blob;world.add(cblob);
 const poolT=decalTex('pool',128,256,(g)=>{g.translate(64,256);g.scale(1,2.4);const r=g.createRadialGradient(0,0,0,0,0,100);r.addColorStop(0,'rgba(255,255,255,.95)');r.addColorStop(.5,'rgba(255,255,255,.35)');r.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=r;g.fillRect(-64,-110,128,110)});
 const pool=new T.Mesh(new T.PlaneGeometry(.55,1.1),new T.MeshBasicMaterial({map:poolT,color:0xfff0cc,blending:T.AdditiveBlending,transparent:true,depthWrite:false,toneMapped:false,opacity:.35}));
 pool.rotation.set(-Math.PI/2,0,Math.PI);pool.position.y=.003;model.add(pool);
@@ -398,7 +401,7 @@ function selectCar(i){
  while(carRoot.children.length)carRoot.remove(carRoot.children[0]);
  ({body,wheels,fronts,heads,tails,revs,flash}=buildCar(CUR,carRoot));
  WB=(CUR.wb[0]-CUR.wb[1])*SC;WR=CUR.wr*SC;TRK=CUR.trk*SC;AXL=-CUR.wb[1]*SC;HIT=CUR.L*.4*SC+.012;
- blob.scale.set(CUR.W*1.6,CUR.L*1.25,1);pool.position.z=CUR.L/2+.55;spot.position.set(0,CUR.head[1]*SC,CUR.L/2*SC);spot.target.position.set(0,0,CUR.L/2*SC+.5);
+ pool.position.z=CUR.L/2+.55;spot.position.set(0,CUR.head[1]*SC,CUR.L/2*SC);spot.target.position.set(0,0,CUR.L/2*SC+.5);
  document.querySelectorAll('.pack').forEach(b=>{const on=+b.dataset.i===i;if(!on&&b.classList.contains('on')){const sh=carFrames(+b.dataset.i,1),x=b.querySelector('canvas').getContext('2d');x.clearRect(0,0,FW,FH);if(sh)x.drawImage(sh,0,0)}b.classList.toggle('on',on)});
  spinK=0;centerPack(true)}
 
@@ -448,7 +451,7 @@ skid.frustumCulled=false;world.add(skid);
 const m4=new T.Matrix4(),q4=new T.Quaternion(),v3=new T.Vector3(),one=new T.Vector3(1,1,1),up=new T.Vector3(0,1,0),zero=new T.Matrix4().makeScale(0,0,0);
 let skI=0;
 function clearSkids(){for(let i=0;i<SK;i++)skid.setMatrixAt(i,zero);skid.instanceMatrix.needsUpdate=true}
-function mark(x,z,h){q4.setFromAxisAngle(up,h);v3.set(x,.0015,z);m4.compose(v3,q4,one);skid.setMatrixAt(skI,m4);skI=(skI+1)%SK;skid.instanceMatrix.needsUpdate=true}
+function mark(x,z,h,y=0){q4.setFromAxisAngle(up,h);v3.set(x,y+.0015,z);m4.compose(v3,q4,one);skid.setMatrixAt(skI,m4);skI=(skI+1)%SK;skid.instanceMatrix.needsUpdate=true}
 clearSkids();
 
 /* ---------- cones (same 1:32 scale) ---------- */
@@ -464,8 +467,88 @@ function addCone(x,z){if(cones.length>=24){toast('That’s plenty of cones — c
 function clearCones(){cones.forEach(c=>world.remove(c.g));cones=[];updCones()}
 function updCones(){const d=cones.filter(c=>c.down).length;$('cones').textContent=cones.length?`Cones down ${d} / ${cones.length}`:'Tap the floor to drop cones'}
 
+/* ---------- dirt track: looping course with hills, whoops and gap jumps ---------- */
+const TR_N=720,TW=.55,TRACK={ready:false,group:null,mesh:null,px:[],pz:[],tx:[],tz:[],s:[],seg:[],len:0,colliders:[]};
+const sstep=k=>{k=clamp(k,0,1);return k*k*(3-2*k)};
+const wrap=d=>((d%1)+1.5)%1-.5;
+function jump(s,a,b,H,c,d){
+ if(s>=a&&s<b){const k=(s-a)/(b-a);return H*(.6*k+.4*k*k)}           // kicker: steepens towards the lip
+ if(s>=c&&s<c+.006)return H*.85*((s-c)/.006);                          // short face up to the landing
+ if(s>=c+.006&&s<d){const k=(s-c-.006)/(d-c-.006);return H*.85*(1-k)}  // landing ramp back down
+ return 0}
+function prof(s){let h=.06*Math.exp(-((wrap(s-.12)/.018)**2))+.12*Math.exp(-((wrap(s-.64)/.028)**2));
+ if(s>.44&&s<.56){const k=(s-.44)/.12;h+=.026*Math.sqrt(Math.sin(k*Math.PI))*(.5-.5*Math.cos(k*Math.PI*10))}
+ return h+jump(s,.215,.245,.11,.29,.335)+jump(s,.795,.82,.12,.86,.905)}
+function grassH(x,z){return .012*(Math.sin(x*1.7)*Math.cos(z*1.3)+.5*Math.sin(x*3.1+z*2.3))}
+(function centerline(){const X=[],Z=[];
+ for(let i=0;i<TR_N;i++){const t=i/TR_N*Math.PI*2;X.push(3.4*Math.cos(t)+.35*Math.cos(3*t));Z.push(2.4*Math.sin(t)+.7*Math.sin(2*t))}
+ let L=0;const cum=[0];for(let i=0;i<TR_N;i++){const j=(i+1)%TR_N,l=Math.hypot(X[j]-X[i],Z[j]-Z[i]);TRACK.seg.push(l);L+=l;cum.push(L)}
+ TRACK.len=L;for(let i=0;i<TR_N;i++){const a=(i+TR_N-1)%TR_N,b=(i+1)%TR_N,dx=X[b]-X[a],dz=Z[b]-Z[a],l=Math.hypot(dx,dz);
+  TRACK.px.push(X[i]);TRACK.pz.push(Z[i]);TRACK.tx.push(dx/l);TRACK.tz.push(dz/l);TRACK.s.push(cum[i]/L)}})();
+// nearest point on the centreline: returns segment index, along-track fraction s and signed sideways offset d
+function nearest(x,z,hint){const P=TRACK,N=TR_N;let bi=0,bd=1e9;
+ const test=i=>{i=(i+N)%N;const dx=x-P.px[i],dz=z-P.pz[i],q=dx*dx+dz*dz;if(q<bd){bd=q;bi=i}};
+ if(hint!=null&&hint>=0)for(let k=-24;k<=24;k++)test(hint+k);
+ else{for(let i=0;i<N;i+=8)test(i);const c=bi;for(let k=-8;k<=8;k++)test(c+k)}
+ let i=bi;const dx=x-P.px[i],dz=z-P.pz[i];let u=dx*P.tx[i]+dz*P.tz[i];
+ if(u<0){i=(i+N-1)%N;u+=P.seg[i]}
+ const dx2=x-P.px[i],dz2=z-P.pz[i];u=clamp(dx2*P.tx[i]+dz2*P.tz[i],0,P.seg[i]);
+ const s=(P.s[i]+u/P.len)%1,d=dx2*P.tz[i]-dz2*P.tx[i];return{i,s,d}}
+function trackInfo(x,z,hint){const r=nearest(x,z,hint),ad=Math.abs(r.d),hp=prof(r.s),e0=TW/2,e1=e0+.1,e2=e0+.55;let h;
+ if(ad<=e0)h=hp;else if(ad<e1)h=hp+.025*Math.sin((ad-e0)/(e1-e0)*Math.PI);else{const k=sstep((ad-e1)/(e2-e1));h=hp*(1-k)+grassH(x,z)*k}
+ r.h=h;r.off=ad>e0+.04;return r}
+const onTrack=()=>src==='track'&&TRACK.ready;
+function groundAt(x,z,hint){return onTrack()?trackInfo(x,z,hint).h:0}
+
+function buildTrack(){
+ const G=new T.Group();TRACK.group=G;world.add(G);PAR=G;
+ // terrain mesh with painted dirt, berms and grass
+ const SZ=11,SEG=220,geo=new T.PlaneGeometry(SZ,SZ,SEG,SEG);geo.rotateX(-Math.PI/2);
+ const pos=geo.attributes.position,col=new Float32Array(pos.count*3),c=new T.Color();
+ for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i),r=trackInfo(x,z),ad=Math.abs(r.d);pos.setY(i,r.h);
+  const n=.5+.5*Math.sin(x*23.1+z*17.7)*Math.cos(x*9.3-z*13.1),e0=TW/2;
+  let rr,gg,bb;
+  if(ad<=e0){const rut=Math.exp(-(((ad-.085)/.025)**2))*.12,lift=Math.min(.12,prof(r.s)*1.1);
+   rr=.66-rut+lift+n*.06;gg=.46-rut+lift*.8+n*.05;bb=.27-rut*.6+lift*.5+n*.03}
+  else if(ad<e0+.1){rr=.56+n*.05;gg=.38+n*.04;bb=.22+n*.03}
+  else{const k=sstep((ad-e0-.1)/.25);const dR=.6,dG=.42,dB=.24,gR=.42+n*.08,gG=.74+n*.08,gB=.3+n*.05;rr=dR+(gR-dR)*k;gg=dG+(gG-dG)*k;bb=dB+(gB-dB)*k}
+  c.setRGB(clamp(rr,0,1),clamp(gg,0,1),clamp(bb,0,1),T.SRGBColorSpace);col[i*3]=c.r;col[i*3+1]=c.g;col[i*3+2]=c.b}
+ geo.setAttribute('color',new T.BufferAttribute(col,3));geo.computeVertexNormals();
+ const mesh=new T.Mesh(geo,toon(0xffffff,{vertexColors:true}));mesh.receiveShadow=true;G.add(mesh);TRACK.mesh=mesh;
+ const far=new T.Mesh(new T.PlaneGeometry(90,90),toon(0x6fbf4a));far.rotation.x=-Math.PI/2;far.position.y=-.03;far.receiveShadow=true;G.add(far);
+ const P=TRACK,at=(i,side,off)=>{i=(i+TR_N)%TR_N;return[P.px[i]+P.tz[i]*side*off,P.pz[i]-P.tx[i]*side*off]};
+ const yaw=i=>Math.atan2(P.tx[i],P.tz[i]);
+ const outSide=i=>(P.px[i]*P.tz[i]-P.pz[i]*P.tx[i])>0?1:-1; // which side faces away from the infield
+ // start / finish: checkered line and an arch with a banner
+ const chk=decalTex('sfchk',256,32,(g)=>{for(let i=0;i<32;i++)for(let j=0;j<4;j++){g.fillStyle=(i+j)%2?'#1c1d21':'#fff';g.fillRect(i*8,j*8,8,8)}});
+ const line=new T.Mesh(new T.PlaneGeometry(TW,.06),new T.MeshBasicMaterial({map:chk,polygonOffset:true,polygonOffsetFactor:-3,toneMapped:false}));
+ line.rotation.set(-Math.PI/2,0,yaw(0)+Math.PI/2,'YXZ');line.rotation.set(-Math.PI/2,0,0);line.rotation.order='YXZ';line.rotation.y=yaw(0);line.position.set(P.px[0],prof(0)+.002,P.pz[0]);G.add(line);
+ const ban=decalTex('banner',256,48,(g)=>{g.fillStyle='#ff5a1f';g.fillRect(0,0,256,48);g.fillStyle='#16181b';g.font='bold 30px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('START · FINISH',128,26)});
+ for(const sd of[1,-1]){const[x,z]=at(0,sd,TW/2+.09);part(new T.CylinderGeometry(.012,.012,.34,10),M.white,x,.17,z,G)}
+ const arch=part(new T.BoxGeometry(TW+.22,.06,.02),[M.dark,M.dark,M.dark,M.dark,new T.MeshBasicMaterial({map:ban,toneMapped:false}),new T.MeshBasicMaterial({map:ban,toneMapped:false})],P.px[0],.33,P.pz[0],G,0,yaw(0),0,false);
+ // tyre walls on the outside of the course, flags at the jumps, hay bales beside the ramps
+ const tyreG=new T.TorusGeometry(.028,.013,8,18);tyreG.rotateX(Math.PI/2);const tw=toon(0xffffff),tr=toon(0xe23a2a);
+ for(let k=0;k<30;k++){const i=k*24,sd=outSide(i);const[x,z]=at(i,sd,TW/2+.23),h=groundAt(x,z);
+  for(let l=0;l<3;l++)part(tyreG,(k+l)%2?tw:tr,x,h+.013+l*.026,z,G);TRACK.colliders.push({x,z,r:.05})}
+ const hay=toon(0xf2c94c);
+ for(const s0 of[.235,.815]){const i=Math.round(s0*TR_N);for(const sd of[1,-1]){const[x,z]=at(i,sd,TW/2+.17);rb(.11,.055,.06,hay,x,groundAt(x,z)+.03,z,G,0,yaw(i),0,.01);TRACK.colliders.push({x,z,r:.06})}
+  const[fx,fz]=at(i,outSide(i),TW/2+.12);part(new T.CylinderGeometry(.004,.004,.24,6),M.dark,fx,groundAt(fx,fz)+.12,fz,G);
+  const fl=new T.Shape();fl.moveTo(0,0);fl.lineTo(.09,-.025);fl.lineTo(0,-.05);
+  const flag=new T.Mesh(new T.ShapeGeometry(fl),toon(0xffd200,{side:T.DoubleSide}));flag.position.set(fx,groundAt(fx,fz)+.24,fz);flag.rotation.y=yaw(i);G.add(flag)}
+ // cartoon trees scattered in the grass
+ let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+ const trunk=toon(0x8a5a35),leaf=[toon(0x3f9d3a),toon(0x58b947),toon(0x2f8a4a)];
+ for(let n=0,tries=0;n<28&&tries<400;tries++){const x=(rnd()-.5)*10,z=(rnd()-.5)*10,r=nearest(x,z);if(Math.abs(r.d)<1)continue;
+  const h=grassH(x,z),sc=.75+rnd()*.6;part(new T.CylinderGeometry(.016*sc,.02*sc,.12*sc,8),trunk,x,h+.06*sc,z,G);
+  if(rnd()>.5){part(new T.ConeGeometry(.09*sc,.2*sc,10),leaf[n%3],x,h+.2*sc,z,G);part(new T.ConeGeometry(.07*sc,.15*sc,10),leaf[(n+1)%3],x,h+.29*sc,z,G)}
+  else part(new T.SphereGeometry(.1*sc,14,10),leaf[n%3],x,h+.2*sc,z,G);
+  TRACK.colliders.push({x,z,r:.03*sc});n++}
+ G.traverse(o=>{if(o.isMesh&&o!==mesh&&o!==far&&o.material!==inkMat)o.castShadow=true});
+ PAR=null;TRACK.ready=true}
+function startPose(){const P=TRACK;return{x:P.px[4],z:P.pz[4],h:Math.atan2(P.tx[4],P.tz[4])}}
+
 /* ---------- state & camera ---------- */
-const S={x:0,z:-1,h:2.4,vx:0,vz:0,vF:0,vL:0,steer:0,spin:0,acc:0,skd:0,kg:0,kb:0};
+const S={x:0,z:-1,h:2.4,vx:0,vz:0,vF:0,vL:0,steer:0,spin:0,acc:0,skd:0,kg:0,kb:0,y:0,vy:0,air:false,ti:-1,ts:0,lastS:0,lapT0:null,squash:0,nx:0,ny:1,nz:0};
 const C={x:0,z:-1,R:2};
 const input={s:0,gas:0,brake:0,keys:{}};
 let src='studio',stream=null,ori=null,a0=null,needReset=false;
@@ -477,11 +560,12 @@ function fixedCam(){
  if(usingGyro()){if(a0==null){a0=ori.a;needReset=true}pitch=clamp(90-ori.b,2,89)*D2R;yaw=(ori.a-a0)*D2R}
  cam.rotation.set(-pitch,yaw,0)}
 const chasePos=new T.Vector3(),look=new T.Vector3();
-function chaseCam(dt){const fx=Math.sin(S.h),fz=Math.cos(S.h);chasePos.set(S.x-fx*.3,.15,S.z-fz*.3);
- cam.position.lerp(chasePos,1-Math.exp(-4*dt));look.set(S.x+fx*.1,.02,S.z+fz*.1);cam.lookAt(look)}
+function chaseCam(dt){const fx=Math.sin(S.h),fz=Math.cos(S.h);chasePos.set(S.x-fx*.3,S.y+.15,S.z-fz*.3);chasePos.y=Math.max(chasePos.y,groundAt(chasePos.x,chasePos.z)+.06);
+ cam.position.lerp(chasePos,1-Math.exp(-4*dt));look.set(S.x+fx*.1,S.y+.02,S.z+fz*.1);cam.lookAt(look)}
 function updRing(){ring.geometry.dispose();ring.geometry=new T.RingGeometry(C.R-.006,C.R,160).rotateX(-Math.PI/2);
- ring.position.set(C.x,.001,C.z);grid.position.set(C.x,0,C.z);grid.visible=ring.visible=P.grid}
+ ring.position.set(C.x,.001,C.z);grid.position.set(C.x,0,C.z);grid.visible=ring.visible=P.grid&&src!=='track'}
 function recenter(){
+ if(src==='track'){C.x=0;C.z=0;C.R=5;updRing();return}
  if(src==='xr'||P.view==='chase'){updRing();return}
  fixedCam();cam.updateMatrixWorld();ray.setFromCamera({x:0,y:-0.1},cam);
  const h=ray.intersectObject(ground);
@@ -490,7 +574,25 @@ function recenter(){
 function putCar(x,z,h){Object.assign(S,{x,z,h,vx:0,vz:0,vF:0,vL:0,steer:0})}
 function reset(){
  if(src==='xr'){placed=false;world.visible=false;toast('Tap the floor to place the car again');return}
- recenter();putCar(C.x,C.z,Math.PI/2+cam.rotation.y+0.4);clearSkids()}
+ recenter();S.y=0;S.vy=0;S.air=false;S.ti=-1;S.lapT0=null;S.squash=0;
+ if(onTrack()){const p=startPose();putCar(p.x,p.z,p.h);S.y=groundAt(p.x,p.z);S.lastS=0;cam.position.set(p.x-Math.sin(p.h)*.3,S.y+.15,p.z-Math.cos(p.h)*.3)}
+ else putCar(C.x,C.z,Math.PI/2+cam.rotation.y+0.4);clearSkids()}
+
+/* ---------- car pose: tilt to the ground, nose follows the flight path in the air ---------- */
+const mB=new T.Matrix4(),vF3=new T.Vector3(),vU3=new T.Vector3(),vX3=new T.Vector3(),W_UP=new T.Vector3(0,1,0);
+function carPose(dt){const fx=Math.sin(S.h),fz=Math.cos(S.h);
+ if(S.air){const vh=Math.hypot(S.vx,S.vz)||1;vF3.set(fx*vh,S.vy*.7,fz*vh).normalize();vX3.crossVectors(W_UP,vF3).normalize();vU3.crossVectors(vF3,vX3)}
+ else{const k=1-Math.exp(-14*dt),tn=onTrack();S.nx+=((tn?S.tnx||0:0)-S.nx)*k;S.ny+=((tn?S.tny||1:1)-S.ny)*k;S.nz+=((tn?S.tnz||0:0)-S.nz)*k;
+  vU3.set(S.nx,S.ny,S.nz).normalize();vF3.set(fx,0,fz);vF3.addScaledVector(vU3,-vF3.dot(vU3)).normalize();vX3.crossVectors(vU3,vF3).normalize()}
+ mB.makeBasis(vX3,vU3,vF3);car.quaternion.setFromRotationMatrix(mB);car.position.set(S.x,S.y,S.z);
+ const gy=S.air?groundAt(S.x,S.z,S.ti):S.y,hgt=S.y-gy;cblob.position.set(S.x,gy+.003,S.z);cblob.rotation.set(-Math.PI/2,0,0);cblob.rotation.order='YXZ';cblob.rotation.y=S.h;
+ cblob.material.opacity=.55*clamp(1-hgt*4,.15,1);cblob.scale.set(CUR.W*1.6*SC*(1+hgt*2),CUR.L*1.25*SC*(1+hgt*2),1)}
+let bestLap=store.bestLap||null;
+function lapCheck(s,vF){if(S.lastS>.9&&s<.1&&vF>0){const now=performance.now();
+  if(S.lapT0!=null){const lt=(now-S.lapT0)/1000;if(!bestLap||lt<bestLap){bestLap=lt;store.bestLap=lt;save();toast(`New best lap: ${lt.toFixed(2)} s!`,3000)}else toast(`Lap: ${lt.toFixed(2)} s`,2500)}
+  else toast('Lap timer started — go!',2000);S.lapT0=now}
+ else if(S.lastS<.1&&s>.9)S.lapT0=null;S.lastS=s}
+function lapText(){const cur=S.lapT0!=null?((performance.now()-S.lapT0)/1000).toFixed(1)+' s':'cross the start line';return`Lap ${cur} · Best ${bestLap?bestLap.toFixed(2)+' s':'—'}`}
 
 /* ---------- physics ---------- */
 let braking=false,reversing=false,slide=0;
@@ -505,7 +607,12 @@ function step(dt){
  const fx=Math.sin(S.h),fz=Math.cos(S.h),lx=Math.cos(S.h),lz=-Math.sin(S.h);
  let vF=S.vx*fx+S.vz*fz,vL=S.vx*lx+S.vz*lz;const prev=vF;
  // throttle sets both the push and the speed it settles at
- const VM=P.vmax*CUR.v;
+ const VM=P.vmax*CUR.v;const TI=onTrack()?trackInfo(S.x,S.z,S.ti):null;if(TI){S.ti=TI.i;S.ts=TI.s}
+ if(!S.air){
+ if(TI){// gravity pulls along the slope; grass is slow and slippery
+  const e=.05,gx=(groundAt(S.x+e,S.z,S.ti)-groundAt(S.x-e,S.z,S.ti))/(2*e),gz=(groundAt(S.x,S.z+e,S.ti)-groundAt(S.x,S.z-e,S.ti))/(2*e);
+  const sl=gx*fx+gz*fz;vF-=9.8*sl/Math.sqrt(1+sl*sl)*dt;const nl=Math.hypot(gx,1,gz);S.tnx=-gx/nl;S.tny=1/nl;S.tnz=-gz/nl;
+  if(TI.off)vF*=Math.exp(-1.4*dt)}
  if(gas){if(vF<0)vF+=8*gas*dt;else{const top=VM*(.2+.8*gas);vF+=6*CUR.a*gas*(1-vF/top)*dt}}
  if(brake){if(vF>.08)vF-=9*brake*dt;else if(vF>-VM*.4*brake)vF-=3*brake*dt;else vF*=Math.exp(-1.6*dt)}
  if(!gas&&!brake)vF*=Math.exp(-1.6*dt);
@@ -515,31 +622,43 @@ function step(dt){
  vL*=Math.exp(-Math.max(3,15*CUR.g-Math.abs(vF)*Math.abs(s)*3.2/CUR.g)*dt);
  S.vx=fx*vF+lx*vL;S.vz=fz*vF+lz*vL;
  S.h+=vF*Math.tan(S.steer)/WB*dt;
+ }else{vF=S.vx*fx+S.vz*fz;vL=S.vx*lx+S.vz*lz;S.h+=s*-.8*dt}
  S.x+=S.vx*dt;S.z+=S.vz*dt;
+ // vertical: follow the ground, launch off lips, fall under gravity, land
+ const gNew=groundAt(S.x,S.z,S.ti);
+ if(!S.air){const ball=S.y+S.vy*dt-4.9*dt*dt;
+  if(onTrack()&&S.vy>.3&&gNew<ball-.003){S.air=true;S.y=ball;S.vy-=9.8*dt}
+  else{S.vy=clamp((gNew-S.y)/dt,-4,4);S.y=gNew}}
+ else{S.vy-=9.8*dt;S.y+=S.vy*dt;if(S.y<=gNew){const imp=-S.vy;S.air=false;S.y=gNew;S.vy=0;S.squash=Math.min(.012,imp*.006);if(imp>.5)thud('wall',imp/3.5)}}
+ for(const o of(onTrack()?TRACK.colliders:[])){const cx=S.x-o.x,cz=S.z-o.z,cd=Math.hypot(cx,cz),rr=o.r+.045;
+  if(cd<rr&&S.y<groundAt(o.x,o.z)+.08){const nx=cx/(cd||1),nz=cz/(cd||1);S.x=o.x+nx*rr;S.z=o.z+nz*rr;const vn=S.vx*nx+S.vz*nz;
+   if(vn<0){S.vx-=1.6*vn*nx;S.vz-=1.6*vn*nz;if(vn<-.4)thud('wall',-vn/2)}}}
  const dx=S.x-C.x,dz=S.z-C.z,d=Math.hypot(dx,dz);
  if(d>C.R){const nx=dx/d,nz=dz/d;S.x=C.x+nx*C.R;S.z=C.z+nz*C.R;const vn=S.vx*nx+S.vz*nz;
-  if(vn>0){S.vx-=1.5*vn*nx;S.vz-=1.5*vn*nz;if(vn>.4){thud('wall',vn/2);toast('Bonk — that’s the edge of the play ring',1500)}}}
+  if(vn>0){S.vx-=1.5*vn*nx;S.vz-=1.5*vn*nz;if(vn>.4){thud('wall',vn/2);toast(onTrack()?'Edge of the course — head back to the dirt':'Bonk — that’s the edge of the play ring',1500)}}}
+ if(TI)lapCheck(TI.s,vF);
  S.acc=(vF-prev)/dt;S.vF=vF;S.vL=vL;
  braking=(brake&&vF>.05)||(gas&&vF<-.05);reversing=vF<-.03&&brake>0;
  slide=Math.max(0,Math.abs(vL)-.18)+(brake&&vF>.5?.25:0);
  // pose
- car.position.set(S.x,0,S.z);car.rotation.y=S.h;
+ carPose(dt);
  fronts.forEach(p=>p.rotation.y=S.steer);
  S.spin+=vF/WR*dt;wheels.forEach(w=>w.rotation.x=S.spin);
  body.rotation.z=clamp(vL*.12,-.08,.08);body.rotation.x=clamp(-S.acc*.006,-.05,.05);
- if(Math.abs(vL)>.35||(brake&&vF>.8)){S.skd+=Math.hypot(S.vx,S.vz)*dt;
-  if(S.skd>.012){S.skd=0;for(const g of[1,-1])mark(S.x+lx*TRK*g-fx*AXL,S.z+lz*TRK*g-fz*AXL,S.h)}}
- sun.position.set(S.x+.5,2,S.z+.4);sun.target.position.set(S.x,0,S.z);
+ S.squash*=Math.exp(-14*dt);body.position.y=-S.squash/SC;
+ if(!S.air&&(Math.abs(vL)>.35||(brake&&vF>.8))){S.skd+=Math.hypot(S.vx,S.vz)*dt;
+  if(S.skd>.012){S.skd=0;for(const g of[1,-1]){const mx=S.x+lx*TRK*g-fx*AXL,mz=S.z+lz*TRK*g-fz*AXL;mark(mx,mz,S.h,groundAt(mx,mz,S.ti))}}}
+ sun.position.set(S.x+.5,S.y+2,S.z+.4);sun.target.position.set(S.x,S.y,S.z);
  // cones
  for(const c of cones){
   const cx=c.x-S.x,cz=c.z-S.z,cd=Math.hypot(cx,cz);
-  if(cd<HIT){const nx=cx/(cd||1),nz=cz/(cd||1),sp=Math.hypot(S.vx,S.vz);
+  if(cd<HIT&&S.y<groundAt(c.x,c.z)+.05){const nx=cx/(cd||1),nz=cz/(cd||1),sp=Math.hypot(S.vx,S.vz);
    c.x=S.x+nx*HIT;c.z=S.z+nz*HIT;c.vx=S.vx*1.1+nx*sp*.6;c.vz=S.vz*1.1+nz*sp*.6;
    if(!c.down&&sp>.15){c.down=true;c.ax.set(nz,0,-nx).normalize();S.vx*=.93;S.vz*=.93;updCones();thud('cone',sp);
     if(!allDown&&cones.every(o=>o.down)){allDown=true;toast('All cones down! Set up another course in Setup.')}}}
   c.x+=c.vx*dt;c.z+=c.vz*dt;const f=Math.exp(-(c.down?3.5:6)*dt);c.vx*=f;c.vz*=f;
   if(c.down&&c.tip<1.5)c.tip=Math.min(1.5,c.tip+dt*10);
-  c.g.position.set(c.x,Math.sin(c.tip)*.008,c.z);c.g.quaternion.setFromAxisAngle(c.ax,c.tip)}
+  c.g.position.set(c.x,groundAt(c.x,c.z)+Math.sin(c.tip)*.008,c.z);c.g.quaternion.setFromAxisAngle(c.ax,c.tip)}
  return gas}
 
 /* ---------- lights ---------- */
@@ -612,11 +731,14 @@ function thud(kind,str){if(!ac||!A.bus||!P.snd)return;const t=ac.currentTime,con
 
 /* ---------- floor sources ---------- */
 function setSource(s){
- src=s;video.style.display=s==='live'?'block':'none';photo.style.display=s==='photo'?'block':'none';
- studio.visible=s==='studio';ground.visible=s!=='studio';
+ const wasTrack=src==='track';src=s;video.style.display=s==='live'?'block':'none';photo.style.display=s==='photo'?'block':'none';
+ if(s==='track'&&!TRACK.ready)buildTrack();if(TRACK.group)TRACK.group.visible=s==='track';stage.classList.toggle('track',s==='track');
+ if(s==='track'&&P.view!=='chase')document.querySelector('#viewSeg button[data-v="chase"]').click();
+ if(wasTrack&&s!=='track'&&P.view==='chase')document.querySelector('#viewSeg button[data-v="fixed"]').click();
+ studio.visible=s==='studio';ground.visible=s!=='studio'&&s!=='track';
  if(s!=='live'&&stream){stream.getTracks().forEach(t=>t.stop());stream=null}
  a0=null;stage.classList.toggle('studio',s==='studio');
- $('badge').textContent={live:'Live camera',photo:'Photo floor',studio:'Studio floor',xr:'Room-scale AR'}[s];
+ $('badge').textContent={live:'Live camera',photo:'Photo floor',studio:'Studio floor',xr:'Room-scale AR',track:'Dirt track'}[s];
  document.querySelectorAll('#srcSeg button').forEach(b=>b.classList.toggle('on',b.dataset.src===s));
  if(s!=='xr')reset()}
 const hideStart=()=>{$('start').hidden=true};
@@ -634,6 +756,7 @@ $('file').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0
  photo.onload=()=>{hideStart();setSource('photo');$('sheet').hidden=false;toast('Line the grid up with your floor using Tilt and Phone height.',5500)};
  photo.src=URL.createObjectURL(f);e.target.value=''});
 function startStudio(){audioOn();hideStart();setSource('studio')}
+function startTrack(){audioOn();hideStart();setSource('track');toast('Follow the dirt — hit the ramps with speed for big air!',4000)}
 
 /* ---------- WebXR room-scale AR ---------- */
 const reticle=new T.Group();
@@ -756,12 +879,12 @@ canvas.addEventListener('pointerdown',e=>{tap={x:e.clientX,y:e.clientY,t:perform
 canvas.addEventListener('pointerup',e=>{
  if(!tap||renderer.xr.isPresenting)return;const ok=Math.hypot(e.clientX-tap.x,e.clientY-tap.y)<12&&performance.now()-tap.t<450;tap=null;if(!ok)return;
  const r=canvas.getBoundingClientRect();ray.setFromCamera({x:(e.clientX-r.left)/r.width*2-1,y:-(e.clientY-r.top)/r.height*2+1},cam);
- const h=ray.intersectObject(ground);if(!h.length)return;const p=world.worldToLocal(h[0].point.clone());
+ const h=ray.intersectObject(onTrack()?TRACK.mesh:ground);if(!h.length)return;const p=world.worldToLocal(h[0].point.clone());
  if(Math.hypot(p.x-C.x,p.z-C.z)>C.R){toast('Drop cones inside the play ring',1800);return}addCone(p.x,p.z)});
 
-$('oXR').onclick=()=>startXR(false);$('oLive').onclick=startLive;$('oPhoto').onclick=pickPhoto;$('oStudio').onclick=startStudio;
+$('oXR').onclick=()=>startXR(false);$('oLive').onclick=startLive;$('oTrack').onclick=startTrack;$('oPhoto').onclick=pickPhoto;$('oStudio').onclick=startStudio;
 $('srcSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
- ({live:startLive,photo:pickPhoto,studio:startStudio,xr:()=>startXR(false)})[b.dataset.src]()});
+ ({live:startLive,photo:pickPhoto,studio:startStudio,track:startTrack,xr:()=>startXR(false)})[b.dataset.src]()});
 $('bSet').onclick=()=>{$('sheet').hidden=!$('sheet').hidden;if(!$('sheet').hidden)requestAnimationFrame(()=>centerPack(false))};$('bClose').onclick=()=>{$('sheet').hidden=true};
 $('bReset').onclick=reset;
 function toggleLights(){P.lights=!P.lights;store.lights=P.lights;save();const b=$('bLights');b.classList.toggle('on',P.lights);b.setAttribute('aria-pressed',P.lights)}
@@ -809,10 +932,10 @@ renderer.setAnimationLoop((t,frame)=>{
  if(needReset){needReset=false;reset()}
  try{audioTick(gas)}catch(e){frameErr(e)}
  if(t-hudT>120){hudT=t;const ms=Math.hypot(S.vx,S.vz);$('kmh').textContent=(ms*3.6).toFixed(1);
-  $('scale').textContent=`≈ ${Math.round(ms*3.6*FULL)} km/h for a full-size car`;
+  $('scale').textContent=`≈ ${Math.round(ms*3.6*FULL)} km/h for a full-size car`;if(onTrack())$('cones').textContent=lapText();else if(src!=='track'&&$('cones').textContent.startsWith('Lap '))updCones();
   const g=usingGyro();$('rT').disabled=!!g;if(g&&ori)$('oT').textContent=`${clamp(90-ori.b,2,89).toFixed(0)}° (phone)`}
  renderer.render(scene,cam)});
-window.__dbg={S,P,cam,input,putCar,C,setSource,renderer,scene,world};
+window.__dbg={S,P,cam,input,putCar,C,setSource,renderer,scene,world};window.__trk=TRACK;
 }
 </script>
 </body>
