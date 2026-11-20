@@ -172,6 +172,9 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
       <div class="sw" id="sw"></div>
       <div class="seg" id="spdSeg"><button data-v="1.6">Beginner speed</button><button data-v="4">Pro speed</button></div>
       <div class="seg" id="viewSeg"><button data-v="fixed">Fixed view</button><button data-v="chase">Chase cam</button></div>
+      <h3>Dirt track</h3>
+      <label class="rng">Gravity <output id="oG"></output><input type="range" id="rG" min="1" max="9.8" step="0.1"></label>
+      <label class="rng">Steering sensitivity <output id="oS"></output><input type="range" id="rS" min="0.4" max="1.6" step="0.05"></label>
       <h3>Course</h3>
       <div class="seg"><button id="bSlalom">Slalom</button><button id="bRing">Cone ring</button><button id="bClear">Clear cones</button></div>
       <label class="chk"><input type="checkbox" id="cSnd" checked> Motor sound</label>
@@ -184,7 +187,7 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
     <div class="card">
       <div id="step1">
         <h1>Pick your racer</h1>
-        <p><small style="color:var(--hot)">Version 16</small><br>Swipe through the packs and tap one to choose it.</p>
+        <p><small style="color:var(--hot)">Version 17</small><br>Swipe through the packs and tap one to choose it.</p>
         <div class="sw" id="sw0"></div>
         <button id="goFloor" class="go">Next: choose your floor</button>
       </div>
@@ -220,7 +223,7 @@ function toast(m,ms=3800){toastEl.textContent=m;toastEl.classList.add('show');cl
 /* Car is modelled in 1:10 units, then scaled to 30% (≈1:32, 13 cm long). */
 const SC=0.3, FULL=32;let WB=.26*SC, WR=.05*SC, TRK=.095*SC, AXL=.13*SC, HIT=.063;
 const P={H:store.H??.8,T:store.T??55,F:store.F??(innerWidth<innerHeight?66:46),grid:store.grid??true,gyro:true,view:'fixed',
- color:store.color??0,vmax:store.vmax2??4,snd:true,vol:store.vol??.7,lights:store.lights??true};
+ color:store.color??0,vmax:store.vmax2??4,snd:true,vol:store.vol??.7,lights:store.lights??true,tg:store.tg??2.5,stK:store.stK??1};
 
 /* ---------- renderer & scene ---------- */
 const canvas=$('gl'),stage=$('stage'),video=$('cam'),photo=$('photo');
@@ -504,7 +507,7 @@ function trackInfo(x,z,hint){const r=nearest(x,z,hint),ad=Math.abs(r.d);r.h=heig
 let XRtrack=false;
 const onTrack=()=>TRACK.ready&&((src==='track'&&!TRACK.cfg.ar)||(src==='xr'&&XRtrack&&TRACK.cfg.ar));
 function groundAt(x,z,hint){return onTrack()?trackInfo(x,z,hint).h:0}
-const GRAV=()=>onTrack()?5:9.8;   // floatier jumps on the dirt
+const GRAV=()=>onTrack()?P.tg:9.8;   // floatier jumps on the dirt (adjustable in Setup)
 
 function dirtColor(s,ad,x,z,c){const n=.5+.5*Math.sin(x*23.1+z*17.7)*Math.cos(x*9.3-z*13.1),[e0,e1,e2]=edges();let rr,gg,bb;
  if(ad<=e0){const rut=Math.exp(-(((ad-e0*.31)/.025)**2))*.12,lift=Math.min(.12,prof(s)*1.1);rr=.66-rut+lift+n*.06;gg=.46-rut+lift*.8+n*.05;bb=.27-rut*.6+lift*.5+n*.03}
@@ -628,8 +631,9 @@ function step(dt){
  if(brake){if(vF>.08)vF-=9*brake*dt;else if(vF>-VM*.4*brake)vF-=3*brake*dt;else vF*=Math.exp(-1.6*dt)}
  if(!gas&&!brake)vF*=Math.exp(-1.6*dt);
  vF-=vF*Math.abs(vF)*.06*dt;vF=clamp(vF,-VM*.4,VM);
- const dirt=!!TI,maxS=Math.min(dirt?.42:.6,Math.atan(WB*(dirt?7:11)/Math.max(.01,vF*vF)));
- S.steer+=(-s*maxS-S.steer)*(1-Math.exp(-(dirt?4.5:12)*dt));
+ // on the dirt the wheels turn less and more slowly; the Setup slider scales both
+ const dirt=!!TI,sk=P.stK,maxS=Math.min(dirt?.3*sk:.6,Math.atan(WB*(dirt?5*sk:11)/Math.max(.01,vF*vF)));
+ S.steer+=(-s*maxS-S.steer)*(1-Math.exp(-(dirt?2.8*sk:12)*dt));
  vL*=Math.exp(-Math.max(3,15*CUR.g-Math.abs(vF)*Math.abs(s)*3.2/CUR.g)*dt);
  S.vx=fx*vF+lx*vL;S.vz=fz*vF+lz*vL;
  S.h+=vF*Math.tan(S.steer)/WB*dt;
@@ -906,11 +910,11 @@ function seg(id,key,cur,fn){const el=$(id);const mark=()=>el.querySelectorAll('b
  P[key]=cur;mark();el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;P[key]=isNaN(+b.dataset.v)?b.dataset.v:+b.dataset.v;mark();fn&&fn()})}
 seg('spdSeg','vmax',P.vmax,()=>{store.vmax2=P.vmax;save()});
 seg('viewSeg','view','fixed',()=>{if(P.view==='fixed')reset();else updRing()});
-const fmt={H:v=>`${(v*100).toFixed(0)} cm`,T:v=>`${v.toFixed(0)}°`,F:v=>`${v.toFixed(0)}°`,V:v=>`${Math.round(v*100)}%`};
-const keyOf={H:'H',T:'T',F:'F',V:'vol'};
-['H','T','F','V'].forEach(k=>{const el=$('r'+k),o=$('o'+k),pk=keyOf[k];el.value=P[pk];o.textContent=fmt[k](P[pk]);
+const fmt={H:v=>`${(v*100).toFixed(0)} cm`,T:v=>`${v.toFixed(0)}°`,F:v=>`${v.toFixed(0)}°`,V:v=>`${Math.round(v*100)}%`,G:v=>`${Math.round(v/9.8*100)}% of normal`,S:v=>`${Math.round(v*100)}%`};
+const keyOf={H:'H',T:'T',F:'F',V:'vol',G:'tg',S:'stK'};
+['H','T','F','V','G','S'].forEach(k=>{const el=$('r'+k),o=$('o'+k),pk=keyOf[k];el.value=P[pk];o.textContent=fmt[k](P[pk]);
  el.addEventListener('input',()=>{P[pk]=+el.value;store[pk]=P[pk];save();o.textContent=fmt[k](P[pk]);
-  if(k==='V'){audioOn();return}
+  if(k==='V'){audioOn();return}if(k==='G'||k==='S')return;
   size();recenter();if(Math.hypot(S.x-C.x,S.z-C.z)>C.R)putCar(C.x,C.z,S.h)})});
 const cg=$('cGrid');cg.checked=P.grid;cg.onchange=()=>{P.grid=cg.checked;store.grid=P.grid;save();updRing()};
 $('cGyro').onchange=e=>{P.gyro=e.target.checked;a0=null;reset()};
