@@ -80,6 +80,7 @@ label.chk input{width:22px;height:22px;accent-color:var(--hot)}
 .opts span{color:var(--mute);font-size:14px}
 :focus-visible{outline:3px solid #fff;outline-offset:2px}
 [hidden]{display:none!important}
+#hud:xr-overlay{background:transparent!important}
 @media (orientation:landscape) and (max-height:520px){.steer{height:84px}.gas{height:128px}.brake{height:100px}.sub{display:none}#sheet{max-height:80vh}}
 @media (prefers-reduced-motion:reduce){#toast,.pedal{transition:none}}
 </style>
@@ -503,16 +504,22 @@ const reticle=new T.Mesh(new T.RingGeometry(.035,.045,32).rotateX(-Math.PI/2),ne
 reticle.matrixAutoUpdate=false;reticle.visible=false;scene.add(reticle);
 (async()=>{let ok=false;try{ok=!!navigator.xr&&await navigator.xr.isSessionSupported('immersive-ar')}catch(e){}
  if(ok){$('oXR').hidden=false;$('xrBtn').hidden=false}})();
+function releaseCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}video.srcObject=null}
 async function startXR(){
  audioOn();
+ // Android lets only one user of the camera at a time: free it before ARCore asks for it
+ const wasLive=src==='live';releaseCamera();
  try{const ses=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay'],domOverlay:{root:$('hud')}});
-  prevSrc=src==='xr'?'studio':src;renderer.xr.enabled=true;renderer.xr.setReferenceSpaceType('local');await renderer.xr.setSession(ses);
+  prevSrc=src==='xr'?'studio':src;xrT=performance.now();xrHit=false;renderer.xr.enabled=true;renderer.xr.setReferenceSpaceType('local');await renderer.xr.setSession(ses);
   hideStart();$('sheet').hidden=true;setSource('xr');world.visible=false;placed=false;
   const vs=await ses.requestReferenceSpace('viewer');hitSrc=await ses.requestHitTestSource({space:vs});
   ses.addEventListener('select',onSelect);
-  ses.addEventListener('end',()=>{hitSrc=null;renderer.xr.enabled=false;world.visible=true;world.position.set(0,0,0);setSource(prevSrc);size()});
+  ses.addEventListener('end',()=>{hitSrc=null;renderer.xr.enabled=false;world.visible=true;world.position.set(0,0,0);
+   if(prevSrc==='live')startLive();else setSource(prevSrc);size()});
   toast('Sweep the phone slowly over the floor, then tap to place the car',6000)}
- catch(e){toast('Room-scale AR could not start on this device.')}}
+ catch(e){toast('Room-scale AR could not start: '+(e&&e.message?e.message:'not supported on this device')+'. Check that Google Play Services for AR is installed and up to date.',7000);
+  if(wasLive)startLive()}}
+let xrT=0,xrHit=false;
 function onSelect(){if(!reticle.visible)return;const p=new T.Vector3().setFromMatrixPosition(reticle.matrix);
  if(!placed){world.position.copy(p);world.updateMatrixWorld();world.visible=true;placed=true;C.x=0;C.z=0;C.R=2;updRing();putCar(0,0,0);clearSkids();toast('Drive! Tap the floor to drop cones.')}
  else{world.updateMatrixWorld();const l=world.worldToLocal(p);addCone(l.x,l.z)}}
@@ -598,8 +605,9 @@ let last=0,hudT=0;
 renderer.setAnimationLoop((t,frame)=>{
  const dt=Math.min(.033,Math.max(.001,(t-last)/1000||.016));last=t;
  if(frame&&hitSrc){const hs=frame.getHitTestResults(hitSrc);
-  if(hs.length){const pose=hs[0].getPose(renderer.xr.getReferenceSpace());reticle.visible=true;reticle.matrix.fromArray(pose.transform.matrix)}else reticle.visible=false}
+  if(hs.length){xrHit=true;const pose=hs[0].getPose(renderer.xr.getReferenceSpace());reticle.visible=true;reticle.matrix.fromArray(pose.transform.matrix)}else reticle.visible=false}
  else reticle.visible=false;
+ if(hitSrc&&!xrHit&&xrT&&t&&performance.now()-xrT>8000){xrT=0;toast('Still looking for the floor — aim at a textured surface in good light and move the phone slowly side to side',6000)}
  let gas=0;if(!(src==='xr'&&!placed))gas=step(dt);
  lights();
  if(!renderer.xr.isPresenting){if(P.view==='chase')chaseCam(dt);else fixedCam()}
