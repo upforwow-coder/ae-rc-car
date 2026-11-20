@@ -43,10 +43,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 .steer span{position:absolute;inset:auto 0 6px;text-align:center;font-size:13px;color:var(--mute)}
 #knob{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-38px 0 0 -32px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ff9a70,var(--hot) 58%,#c23c0c);box-shadow:0 6px 14px rgba(0,0,0,.45),inset 0 -3px 0 rgba(0,0,0,.25)}
 .pedals{display:flex;align-items:flex-end;gap:10px}
-.pedal{width:84px;border-radius:16px;border:0;font:600 17px/1.15 'Chakra Petch',sans-serif;touch-action:none;box-shadow:0 6px 0 rgba(0,0,0,.45);transition:transform .06s,box-shadow .06s}
+.pedal{position:relative;overflow:hidden;padding:0;width:84px;border-radius:16px;border:0;font:600 17px/1.15 'Chakra Petch',sans-serif;touch-action:none;box-shadow:0 6px 0 rgba(0,0,0,.45);transition:transform .06s,box-shadow .06s}
 .pedal small{display:block;font:500 13px/1.15 Barlow,sans-serif;opacity:.75;margin-top:4px}
-.brake{height:96px;background:#f4f4f2;color:#16181b}
-.gas{height:132px;background:var(--hot);color:#16181b}
+.pedal .fill{position:absolute;left:0;right:0;bottom:0;height:0;background:rgba(0,0,0,.24)}
+.pedal .lbl{position:relative;display:block}
+.brake{height:120px;background:#f4f4f2;color:#16181b}
+.gas{height:168px;background:var(--hot);color:#16181b}
 .pedal.on{transform:translateY(5px);box-shadow:0 1px 0 rgba(0,0,0,.45)}
 #sheet{position:fixed;left:0;right:0;bottom:0;max-height:62vh;overflow:auto;background:#16181b;border-top:3px solid var(--hot);border-radius:18px 18px 0 0;padding:14px max(16px,4vw) 28px;touch-action:pan-y}
 .sheet-in{max-width:640px;margin:0 auto}
@@ -78,7 +80,7 @@ label.chk input{width:22px;height:22px;accent-color:var(--hot)}
 .opts span{color:var(--mute);font-size:14px}
 :focus-visible{outline:3px solid #fff;outline-offset:2px}
 [hidden]{display:none!important}
-@media (orientation:landscape) and (max-height:520px){.steer{height:84px}.gas{height:104px}.brake{height:80px}.sub{display:none}#sheet{max-height:80vh}}
+@media (orientation:landscape) and (max-height:520px){.steer{height:84px}.gas{height:128px}.brake{height:100px}.sub{display:none}#sheet{max-height:80vh}}
 @media (prefers-reduced-motion:reduce){#toast,.pedal{transition:none}}
 </style>
 </head>
@@ -103,8 +105,8 @@ label.chk input{width:22px;height:22px;accent-color:var(--hot)}
   <div class="ctrl">
     <div id="steer" class="steer" role="slider" aria-label="Steering"><div id="knob"></div><span>drag to steer</span></div>
     <div class="pedals">
-      <button id="brake" class="pedal brake">Brake<small>hold = reverse</small></button>
-      <button id="gas" class="pedal gas">Gas</button>
+      <button id="brake" class="pedal brake"><span class="fill" id="brakeFill"></span><span class="lbl">Brake<small id="brakePct">hold = reverse</small></span></button>
+      <button id="gas" class="pedal gas"><span class="fill" id="gasFill"></span><span class="lbl">Gas<small id="gasPct">higher = faster</small></span></button>
     </div>
   </div>
 
@@ -132,7 +134,7 @@ label.chk input{width:22px;height:22px;accent-color:var(--hot)}
       <div class="seg"><button id="bSlalom">Slalom</button><button id="bRing">Cone ring</button><button id="bClear">Clear cones</button></div>
       <label class="chk"><input type="checkbox" id="cSnd" checked> Motor sound</label>
       <label class="rng">Volume <output id="oV"></output><input type="range" id="rV" min="0" max="1" step="0.05"></label>
-      <p class="note">Keyboard: arrows or WASD, space to brake. Live camera and room-scale AR need camera access; if this viewer blocks it, use a photo of your floor, or open the standalone file from an https address in your phone's browser (Chrome on Android for room-scale AR).</p>
+      <p class="note">Pedals are analog: press low for a little, slide up for more; screens that sense touch pressure use it too. A Bluetooth game controller works (triggers for gas and brake, left stick to steer). Keyboard: arrows or WASD, space to brake, L for lights. Live camera and room-scale AR need camera access; if this viewer blocks it, use a photo of your floor, or open the standalone file from an https address in your phone's browser (Chrome on Android for room-scale AR).</p>
     </div>
   </section>
 
@@ -329,7 +331,7 @@ function clearCones(){cones.forEach(c=>world.remove(c.g));cones=[];updCones()}
 function updCones(){const d=cones.filter(c=>c.down).length;$('cones').textContent=cones.length?`Cones down ${d} / ${cones.length}`:'Tap the floor to drop cones'}
 
 /* ---------- state & camera ---------- */
-const S={x:0,z:-1,h:2.4,vx:0,vz:0,vF:0,vL:0,steer:0,spin:0,acc:0,skd:0};
+const S={x:0,z:-1,h:2.4,vx:0,vz:0,vF:0,vL:0,steer:0,spin:0,acc:0,skd:0,kg:0,kb:0};
 const C={x:0,z:-1,R:2};
 const input={s:0,gas:0,brake:0,keys:{}};
 let src='studio',stream=null,ori=null,a0=null,needReset=false;
@@ -360,12 +362,17 @@ function reset(){
 let braking=false,reversing=false,slide=0;
 function step(dt){
  const k=input.keys;
- const s=clamp(input.s+((k.ArrowRight||k.d)?1:0)-((k.ArrowLeft||k.a)?1:0),-1,1);
- const gas=Math.max(input.gas,(k.ArrowUp||k.w)?1:0),brake=Math.max(input.brake,(k.ArrowDown||k.s||k[' '])?1:0);
+ // keys ramp in, so a tap is a light touch and holding builds to full
+ S.kg=(k.ArrowUp||k.w)?Math.min(1,S.kg+dt*2.5):0;S.kb=(k.ArrowDown||k.s||k[' '])?Math.min(1,S.kb+dt*5):0;
+ const gp=pad();
+ const s=clamp(input.s+((k.ArrowRight||k.d)?1:0)-((k.ArrowLeft||k.a)?1:0)+gp.s,-1,1);
+ const gas=Math.max(input.gas,S.kg,gp.g),brake=Math.max(input.brake,S.kb,gp.b);
+ if(gp.on)showPedals(gas,brake);
  const fx=Math.sin(S.h),fz=Math.cos(S.h),lx=Math.cos(S.h),lz=-Math.sin(S.h);
  let vF=S.vx*fx+S.vz*fz,vL=S.vx*lx+S.vz*lz;const prev=vF;
- if(gas)vF+=(vF<0?8:5.5*(1-vF/P.vmax*.6))*gas*dt;
- if(brake){if(vF>.08)vF-=9*dt;else vF=Math.max(vF-3*dt,-P.vmax*.4)}
+ // throttle sets both the push and the speed it settles at
+ if(gas){if(vF<0)vF+=8*gas*dt;else{const top=P.vmax*(.2+.8*gas);vF+=6*gas*(1-vF/top)*dt}}
+ if(brake){if(vF>.08)vF-=9*brake*dt;else if(vF>-P.vmax*.4*brake)vF-=3*brake*dt;else vF*=Math.exp(-1.6*dt)}
  if(!gas&&!brake)vF*=Math.exp(-1.6*dt);
  vF-=vF*Math.abs(vF)*.06*dt;vF=clamp(vF,-P.vmax*.4,P.vmax);
  const maxS=Math.min(.6,Math.atan(WB*11/Math.max(.01,vF*vF)));
@@ -516,11 +523,30 @@ function steerAt(e){const r=steer.getBoundingClientRect(),half=r.width/2-34;inpu
 steer.addEventListener('pointerdown',e=>{sid=e.pointerId;try{steer.setPointerCapture(sid)}catch(_){}steerAt(e);audioOn()});
 steer.addEventListener('pointermove',e=>{if(e.pointerId===sid)steerAt(e)});
 ['pointerup','pointercancel'].forEach(n=>steer.addEventListener(n,e=>{if(e.pointerId!==sid)return;sid=null;input.s=0;knob.style.transform=''}));
-function pedal(el,key){
- el.addEventListener('pointerdown',e=>{e.preventDefault();input[key]=1;el.classList.add('on');try{el.setPointerCapture(e.pointerId)}catch(_){}audioOn()});
- ['pointerup','pointercancel','lostpointercapture'].forEach(n=>el.addEventListener(n,()=>{input[key]=0;el.classList.remove('on')}));
+/* analog pedals: finger height on the pedal sets the amount (slide while holding);
+   real touch pressure is used too once the screen proves it reports it */
+let forceOK=false;
+const PD={gas:{fill:$('gasFill'),pct:$('gasPct'),hint:'higher = faster'},brake:{fill:$('brakeFill'),pct:$('brakePct'),hint:'hold = reverse'}};
+function showPedal(key,v){const d=PD[key];d.fill.style.height=(v*100).toFixed(0)+'%';d.pct.textContent=v>0?Math.round(v*100)+'%':d.hint}
+function showPedals(g,b){showPedal('gas',g);showPedal('brake',b)}
+function pedal(el,key){let id=null,pmin=1,pmax=0;
+ const amt=e=>{const r=el.getBoundingClientRect();let v=clamp((r.bottom-e.clientY)/r.height,0,1);v=.12+.88*clamp((v-.08)/.8,0,1);
+  if(e.pointerType!=='mouse'&&e.pressure>0){pmin=Math.min(pmin,e.pressure);pmax=Math.max(pmax,e.pressure);if(pmax-pmin>.15||e.pointerType==='pen')forceOK=true;
+   if(forceOK)v=Math.max(v,clamp(e.pressure*1.5,0,1))}
+  return v};
+ el.addEventListener('pointerdown',e=>{e.preventDefault();id=e.pointerId;pmin=1;pmax=0;try{el.setPointerCapture(id)}catch(_){}
+  input[key]=amt(e);showPedal(key,input[key]);el.classList.add('on');audioOn()});
+ el.addEventListener('pointermove',e=>{if(e.pointerId!==id)return;input[key]=amt(e);showPedal(key,input[key])});
+ const off=e=>{if(id!==null&&e.pointerId!==id)return;id=null;input[key]=0;showPedal(key,0);el.classList.remove('on')};
+ ['pointerup','pointercancel','lostpointercapture'].forEach(n=>el.addEventListener(n,off));
  el.addEventListener('contextmenu',e=>e.preventDefault())}
 pedal($('gas'),'gas');pedal($('brake'),'brake');
+// game controller: analog triggers and stick
+let padSeen=false;
+function pad(){const o={g:0,b:0,s:0,on:false};try{const gs=navigator.getGamepads?navigator.getGamepads():[];
+ for(const g of gs){if(!g||!g.connected)continue;const bt=i=>g.buttons[i]?g.buttons[i].value:0,ax=g.axes[0]||0;
+  o.g=bt(7);o.b=bt(6);o.s=Math.abs(ax)>.08?ax:0;o.on=true;
+  if(!padSeen){padSeen=true;toast('Controller connected: right trigger gas, left trigger brake, left stick steers')}break}}catch(e){}return o}
 document.querySelectorAll('.top,.ctrl,#sheet,#start').forEach(el=>el.addEventListener('beforexrselect',e=>e.preventDefault()));
 const kn=e=>e.key.length===1?e.key.toLowerCase():e.key;
 addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;const k=kn(e);input.keys[k]=true;if(k.startsWith('Arrow')||k===' ')e.preventDefault();if(k==='l')toggleLights();audioOn()});
