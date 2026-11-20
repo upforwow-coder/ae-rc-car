@@ -207,7 +207,7 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
       <div id="mpInfo" hidden><p class="room">Room <b id="mpRoom"></b></p><ul id="mpList"></ul>
         <div class="seg"><button id="mpShare">Share invite</button><button id="mpLeave">Leave room</button></div></div>
       <p class="note" id="mpStatus"></p>
-      <p class="note">Up to 6 racers on the dirt track: in the park or on their own floor with AR dirt track. The host starts races. Rooms connect through the free PeerJS service; your car's position goes straight to the other players.</p>
+      <p class="note">Up to 6 racers on the dirt track: in the park or on their own floor with AR dirt track. The host starts races. Rooms connect through a free public message server (MQTT) over a normal secure web connection, so they work on Wi-Fi and mobile data. Keep the host's app open on screen while others join.</p>
       <h3>Course</h3>
       <div class="seg"><button id="bSlalom">Slalom</button><button id="bRing">Cone ring</button><button id="bClear">Clear cones</button></div>
       <label class="chk"><input type="checkbox" id="cSnd" checked> Motor sound</label>
@@ -220,7 +220,7 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
     <div class="card">
       <div id="step1">
         <h1>Pick your racer</h1>
-        <p><small style="color:var(--hot)">Version 19</small><br>Swipe through the packs and tap one to choose it.</p>
+        <p><small style="color:var(--hot)">Version 20</small><br>Swipe through the packs and tap one to choose it.</p>
         <div class="sw" id="sw0"></div>
         <button id="goFloor" class="go">Next: choose your floor</button>
       </div>
@@ -681,7 +681,7 @@ function racers(){return[R.me,...R.bots,...(R.mp?[...MP.remotes.values()]:[])]}
 function finish(r){r.fin=(performance.now()-R.goT)/1000;R.order.push(r);
  if(r===R.me){if(R.mp)mpSendFin(r.fin);r.place=1+racers().filter(o=>o!==r&&o.fin!=null&&o.fin<r.fin).length;showResults();toast(r.place===1?'You win!':`You finished ${ord(r.place)}`,3000)}
  else if(!$('raceOv').hidden)showResults()}
-function mpSendFin(t){const m={t:'fin',id:MP.id,time:t};if(MP.status==='host')mpSend(m);else{const c=MP.conns.get(MP.hostId);if(c&&c.open)c.send(m)}}
+function mpSendFin(t){mpSend({t:'fin',time:t})}
 function raceCross(r,dir){if(R.state!=='race'||r.fin!=null)return;r.cross+=dir;if(r.cross>=R.laps)finish(r);
  else if(r===R.me&&dir>0)toast(r.cross===R.laps-1?'Final lap!':`Lap ${r.cross+1} of ${R.laps}`,1800)}
 function standings(){const all=racers().map(r=>({r,p:r.fin!=null?1e5-r.fin:progress(r,r===R.me?S.ts:(r.s??r.ts))}));
@@ -738,65 +738,97 @@ function raceTick(dt){
  if(R.state==='race'&&R.me.fin!=null&&(racers().every(b=>b.fin!=null)||now-(R.goT+R.me.fin*1000)>15000))R.state='done'}
 function endRace(){R.state='idle';clearBots();$('raceOv').hidden=true}
 
+/* ---------- tiny MQTT 3.1.1 client over WebSocket (QoS 0 publish/subscribe only) ---------- */
+class MiniMQTT{
+ constructor(url,clientId){this.url=url;this.id=clientId;this.buf=new Uint8Array(0);this.onmsg=null;this.onclose=null;this.pid=1;this.ping=null}
+ static enc(s){return new TextEncoder().encode(s)}
+ static str(s){const b=MiniMQTT.enc(s);const o=new Uint8Array(b.length+2);o[0]=b.length>>8;o[1]=b.length&255;o.set(b,2);return o}
+ static pkt(type,body){let n=body.length;const len=[];do{let d=n%128;n=Math.floor(n/128);if(n>0)d|=128;len.push(d)}while(n>0);
+  const o=new Uint8Array(1+len.length+body.length);o[0]=type;o.set(len,1);o.set(body,1+len.length);return o}
+ static cat(...a){const n=a.reduce((s,x)=>s+x.length,0),o=new Uint8Array(n);let p=0;for(const x of a){o.set(x,p);p+=x.length}return o}
+ connect(timeout=7000){return new Promise((res,rej)=>{let done=false;const fail=e=>{if(!done){done=true;rej(e)}try{this.ws&&this.ws.close()}catch(_){}};
+  const t=setTimeout(()=>fail(new Error('timed out')),timeout);
+  try{this.ws=new WebSocket(this.url,['mqtt'])}catch(e){clearTimeout(t);return fail(e)}
+  this.ws.binaryType='arraybuffer';
+  this.ws.onopen=()=>{const vh=MiniMQTT.cat(MiniMQTT.str('MQTT'),new Uint8Array([4,2,0,30]));this.ws.send(MiniMQTT.pkt(0x10,MiniMQTT.cat(vh,MiniMQTT.str(this.id))))};
+  this.ws.onerror=()=>{clearTimeout(t);fail(new Error('could not reach the server'))};
+  this.ws.onclose=()=>{clearTimeout(t);clearInterval(this.ping);if(!done)fail(new Error('server closed the connection'));else if(this.onclose)this.onclose()};
+  this.ws.onmessage=e=>{const d=new Uint8Array(e.data),b=new Uint8Array(this.buf.length+d.length);b.set(this.buf);b.set(d,this.buf.length);this.buf=b;
+   for(;;){if(this.buf.length<2)break;let mul=1,len=0,i=1,c;do{if(i>=this.buf.length)return;c=this.buf[i++];len+=(c&127)*mul;mul*=128}while(c&128);
+    if(this.buf.length<i+len)break;const type=this.buf[0]>>4,body=this.buf.slice(i,i+len);this.buf=this.buf.slice(i+len);
+    if(type===2){clearTimeout(t);if(body[1]===0){done=true;this.ping=setInterval(()=>{try{this.ws.send(new Uint8Array([0xC0,0]))}catch(_){}},20000);res(this)}else fail(new Error('server refused ('+body[1]+')'))}
+    else if(type===3&&this.onmsg){const tl=(body[0]<<8)|body[1],topic=new TextDecoder().decode(body.slice(2,2+tl));
+     const payload=new TextDecoder().decode(body.slice(2+tl));try{this.onmsg(topic,payload)}catch(_){}}}}})}
+ subscribe(topic){const id=this.pid++;this.ws.send(MiniMQTT.pkt(0x82,MiniMQTT.cat(new Uint8Array([id>>8,id&255]),MiniMQTT.str(topic),new Uint8Array([0]))))}
+ publish(topic,text){if(this.ws&&this.ws.readyState===1)this.ws.send(MiniMQTT.pkt(0x30,MiniMQTT.cat(MiniMQTT.str(topic),MiniMQTT.enc(text))))}
+ close(){clearInterval(this.ping);try{this.ws.send(new Uint8Array([0xE0,0]))}catch(_){}try{this.ws.close()}catch(_){}}}
+
 /* ---------- multiplayer: PeerJS rooms, host relays everyone's car state ---------- */
 // cars are shared in track terms (along-track fraction, sideways offset as a share of track width),
 // so players in the park and on AR tracks of a different size see each other in the right place
-const MP={peer:null,conns:new Map(),status:'off',code:'',id:'',hostId:'',roster:[],remotes:new Map(),lastSend:0,name:(store.mpName||('Racer'+Math.floor(100+Math.random()*900))).slice(0,12),pendingJoin:null};
-const ALPH='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',roomCode=()=>Array.from({length:5},()=>ALPH[Math.floor(Math.random()*ALPH.length)]).join('');
-function loadPeer(){return new Promise((res,rej)=>{if(window.Peer)return res();const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
- s.onload=()=>res();s.onerror=()=>rej(new Error('could not load the multiplayer library'));document.head.appendChild(s)})}
+const MP={mq:null,status:'off',code:'',id:'',hostId:'',roster:[],remotes:new Map(),lastSend:0,lastRoster:0,seen:new Map(),joinT:0,
+ name:(store.mpName||('Racer'+Math.floor(100+Math.random()*900))).slice(0,12),pendingJoin:null};
+// rooms run through a free public MQTT message server over a normal secure web connection (works behind any router);
+// the last letter of the room code says which server, so everyone in a room meets on the same one
+const BROKERS={E:'wss://broker.emqx.io:8084/mqtt',H:'wss://broker.hivemq.com:8884/mqtt',M:'wss://test.mosquitto.org:8081/mqtt'};
+const ALPH='ABCDFGJKLNPQRSTUVWXYZ23456789',roomCode=b=>Array.from({length:4},()=>ALPH[Math.floor(Math.random()*ALPH.length)]).join('')+b;
+const topic=()=>'arrc-race/v1/'+MP.code;
 function mpNeedsTrack(){if(onTrack())return true;if(src==='xr'){toast('Use AR dirt track (or the park Dirt track) for multiplayer');return false}setSource('track');return true}
-function mpUI(){const on=MP.status==='host'||MP.status==='client';$('mpInfo').hidden=!on;$('mpStart').hidden=on;$('mpJoinRow').hidden=on||$('mpJoinRow').dataset.open!=='1';
+function mpUI(){const on=MP.status==='host'||MP.status==='client';$('mpInfo').hidden=!on;$('mpStart').hidden=on||MP.status==='connecting';$('mpJoinRow').hidden=on||MP.status==='connecting'||$('mpJoinRow').dataset.open!=='1';
  $('mpRoom').textContent=MP.code;$('mpList').innerHTML=MP.roster.map(p=>`<li><span class="dot" style="background:${CARS[p.car]?.color||'#888'}"></span>${esc(p.name)}${p.id===MP.id?' (you)':''}${p.id===MP.hostId?' · host':''}</li>`).join('');
- $('mpStatus').textContent=MP.status==='connecting'?'Connecting…':on?`${MP.roster.length} racer${MP.roster.length===1?'':'s'} in room`:'';
+ $('mpStatus').textContent=MP.status==='connecting'?(MP.code?`Connecting to room ${MP.code}…`:'Opening a room…'):on?`${MP.roster.length} racer${MP.roster.length===1?'':'s'} in room`:'';
  $('bRace').textContent=MP.status==='client'?'Host starts races':'Start race';$('bRace').disabled=MP.status==='client';$('oppSeg').style.opacity=MP.status!=='off'?.4:1}
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function mpHost(){if(!mpNeedsTrack())return;mpLeave(true);MP.status='connecting';mpUI();
- try{await loadPeer()}catch(e){MP.status='off';mpUI();toast('Multiplayer could not load: '+e.message+'. It works on the GitHub page.',6000);return}
- const tryCode=()=>{MP.code=roomCode();const peer=new Peer('arrc-'+MP.code,{debug:0});MP.peer=peer;
-  peer.on('open',id=>{MP.status='host';MP.id=id;MP.hostId=id;MP.roster=[{id,name:MP.name,car:P.color}];mpUI();toast(`Room ${MP.code} is open — share the invite`,4000)});
-  peer.on('connection',c=>{if(MP.roster.length>=6){c.on('open',()=>{c.send({t:'full'});setTimeout(()=>c.close(),300)});return}mpConn(c)});
-  peer.on('error',e=>{if(e.type==='unavailable-id'){peer.destroy();tryCode()}else{toast('Multiplayer error: '+(e.type||e.message),5000);if(MP.status==='connecting'){MP.status='off';mpUI()}}});
-  peer.on('disconnected',()=>{try{peer.reconnect()}catch(_){}})};
- tryCode()}
-async function mpJoin(code){code=String(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(code.length!==5){toast('Room codes are 5 letters or numbers');return}
- if(!mpNeedsTrack())return;mpLeave(true);MP.status='connecting';MP.code=code;mpUI();
- try{await loadPeer()}catch(e){MP.status='off';mpUI();toast('Multiplayer could not load: '+e.message+'. It works on the GitHub page.',6000);return}
- const peer=new Peer({debug:0});MP.peer=peer;
- peer.on('open',id=>{MP.id=id;MP.hostId='arrc-'+code;mpConn(peer.connect(MP.hostId,{serialization:'json'}))});
- peer.on('error',e=>{toast(e.type==='peer-unavailable'?`Room ${code} wasn’t found — check the code or ask the host to open it again`:'Multiplayer error: '+(e.type||e.message),6000);mpLeave(true)})}
-function mpConn(c){
- c.on('open',()=>{MP.conns.set(c.peer,c);if(MP.status==='connecting'){MP.status='client';c.send({t:'hello',name:MP.name,car:P.color});mpUI();toast(`Joined room ${MP.code}`,3000)}});
- c.on('data',d=>mpMsg(c,d));
- c.on('close',()=>{MP.conns.delete(c.peer);
-  if(MP.status==='host'){MP.roster=MP.roster.filter(p=>p.id!==c.peer);dropRemote(c.peer);mpSend({t:'roster',roster:MP.roster});mpUI()}
-  else if(c.peer===MP.hostId&&MP.status==='client'){toast('The host left the room',4000);mpLeave()}});
- c.on('error',()=>{})}
-function mpSend(m,except){for(const[id,c]of MP.conns)if(id!==except&&c.open)try{c.send(m)}catch(_){}}
-function mpMsg(c,d){if(!d||typeof d!=='object')return;
+const myId=()=>MP.id||(MP.id='p'+Math.random().toString(36).slice(2,10));
+async function mqOpen(letter){const mq=new MiniMQTT(BROKERS[letter],'arrc_'+myId()+'_'+Math.random().toString(36).slice(2,6));await mq.connect();
+ mq.onmsg=(t,p)=>{let d;try{d=JSON.parse(p)}catch(_){return}if(d&&d.from!==MP.id)mpMsg(d)};
+ mq.onclose=()=>{if(MP.mq===mq&&MP.status!=='off'){toast('Lost the connection to the room',4000);mpLeave(true)}};
+ MP.mq=mq;mq.subscribe(topic());return mq}
+async function mpHost(){if(!mpNeedsTrack())return;mpLeave(true);myId();MP.status='connecting';MP.code='';mpUI();
+ for(const L of'EHM'){MP.code=roomCode(L);try{await mqOpen(L);break}catch(e){MP.mq=null;MP.code=''}}
+ if(!MP.mq){MP.status='off';mpUI();toast('Couldn’t reach a multiplayer server — check the internet connection',6000);return}
+ MP.status='host';MP.hostId=MP.id;MP.roster=[{id:MP.id,name:MP.name,car:P.color}];mpSend({t:'roster',roster:MP.roster,host:MP.id});mpUI();toast(`Room ${MP.code} is open — share the invite`,4000)}
+async function mpJoin(code){code=String(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+ if(code.length!==5||!BROKERS[code[4]]){toast('That room code doesn’t look right — it’s 5 letters/numbers from the host',4500);return}
+ if(!mpNeedsTrack())return;mpLeave(true);myId();MP.status='connecting';MP.code=code;mpUI();
+ try{await mqOpen(code[4])}catch(e){MP.status='off';MP.code='';mpUI();toast('Couldn’t reach the multiplayer server: '+e.message,6000);return}
+ MP.joinT=performance.now();mpSend({t:'hello',name:MP.name,car:P.color})}
+function mpSend(m){if(MP.mq){m.from=MP.id;MP.mq.publish(topic(),JSON.stringify(m))}}
+function mpMsg(d){const now=performance.now();if(d.from)MP.seen.set(d.from,now);
  if(MP.status==='host'){
-  if(d.t==='hello'){const p={id:c.peer,name:String(d.name||'Racer').slice(0,12),car:clamp(d.car|0,0,CARS.length-1)};MP.roster=MP.roster.filter(x=>x.id!==c.peer).concat(p);
-   mpSend({t:'roster',roster:MP.roster});mpUI();toast(`${p.name} joined`,2500);
-   if(R.state!=='idle')c.send({t:'busy'})}
-  else if(d.t==='st'){d.id=c.peer;remoteState(d);mpSend(d,c.peer)}
-  else if(d.t==='fin'){d.id=c.peer;remoteFin(d);mpSend(d,c.peer)}}
- else{
-  if(d.t==='roster'){MP.roster=d.roster||[];for(const id of[...MP.remotes.keys()])if(!MP.roster.some(p=>p.id===id))dropRemote(id);mpUI()}
+  if(d.t==='hello'){if(MP.roster.length>=6&&!MP.roster.some(p=>p.id===d.from)){mpSend({t:'full',to:d.from});return}
+   const p={id:d.from,name:String(d.name||'Racer').slice(0,12),car:clamp(d.car|0,0,CARS.length-1)};const isNew=!MP.roster.some(x=>x.id===p.id);
+   MP.roster=MP.roster.filter(x=>x.id!==p.id).concat(p);mpSend({t:'roster',roster:MP.roster,host:MP.id});mpUI();if(isNew)toast(`${p.name} joined`,2500);
+   if(R.state!=='idle')mpSend({t:'busy',to:d.from})}
   else if(d.t==='st')remoteState(d);
   else if(d.t==='fin')remoteFin(d);
-  else if(d.t==='race'){MP.roster=d.roster||MP.roster;R.laps=d.laps;beginRace(true)}
-  else if(d.t==='busy')toast('A race is running — you’ll join the next one',3500);
-  else if(d.t==='full'){toast('That room is full (6 racers)',4000);mpLeave()}}}
-function mpLeave(quiet){for(const c of MP.conns.values())try{c.close()}catch(_){}MP.conns.clear();if(MP.peer)try{MP.peer.destroy()}catch(_){}
- MP.peer=null;for(const id of[...MP.remotes.keys()])dropRemote(id);const was=MP.status;MP.status='off';MP.roster=[];MP.code='';mpUI();if(!quiet&&was!=='off')toast('Left the room',2000)}
-// my car, in track terms, ~12 times a second
+  else if(d.t==='bye'){MP.roster=MP.roster.filter(p=>p.id!==d.from);dropRemote(d.from);mpSend({t:'roster',roster:MP.roster,host:MP.id});mpUI()}}
+ else if(MP.status==='client'||MP.status==='connecting'){
+  if(d.t==='roster'){if(!d.roster.some(p=>p.id===MP.id)){if(MP.status==='connecting')mpSend({t:'hello',name:MP.name,car:P.color});return}
+   if(MP.status==='connecting'){MP.status='client';toast(`Joined room ${MP.code}`,3000)}
+   MP.hostId=d.host;MP.lastRoster=now;MP.roster=d.roster;for(const id of[...MP.remotes.keys()])if(!MP.roster.some(p=>p.id===id))dropRemote(id);mpUI()}
+  else if(d.t==='st')remoteState(d);
+  else if(d.t==='fin')remoteFin(d);
+  else if(d.t==='race'&&MP.status==='client'){MP.roster=d.roster||MP.roster;R.laps=d.laps;beginRace(true)}
+  else if(d.t==='busy'&&d.to===MP.id)toast('A race is running — you’ll join the next one',3500);
+  else if(d.t==='full'&&d.to===MP.id){toast('That room is full (6 racers)',4000);mpLeave(true)}
+  else if(d.t==='close'){toast('The host closed the room',4000);mpLeave(true)}}}
+function mpLeave(quiet){const was=MP.status;if(MP.mq){mpSend({t:was==='host'?'close':'bye'});const m=MP.mq;MP.mq=null;setTimeout(()=>m.close(),150)}
+ for(const id of[...MP.remotes.keys()])dropRemote(id);MP.status='off';MP.roster=[];MP.code='';MP.hostId='';mpUI();if(!quiet&&was!=='off')toast('Left the room',2000)}
+// my car, in track terms, ~10 times a second; the host also repeats the roster as a heartbeat
 function mpTick(dt){
- if(MP.status!=='host'&&MP.status!=='client')return;
  const now=performance.now();
- if(onTrack()&&now-MP.lastSend>80){MP.lastSend=now;const r=trackInfo(S.x,S.z,S.ti),tp=trackPoint(r.s,r.i);
+ if(MP.status==='connecting'&&MP.joinT&&MP.code){if(now-MP.joinT>8000){MP.joinT=0;toast(`No answer from room ${MP.code} — check the code, and keep the host’s app open on screen`,6500);mpLeave(true)}
+  else if(Math.floor((now-MP.joinT)/2000)!==Math.floor((now-MP.joinT-dt*1000)/2000))mpSend({t:'hello',name:MP.name,car:P.color});return}
+ if(MP.status!=='host'&&MP.status!=='client')return;
+ if(MP.status==='host'){if(now-MP.lastRoster>2500){MP.lastRoster=now;
+   const gone=MP.roster.filter(p=>p.id!==MP.id&&now-(MP.seen.get(p.id)||now)>9000);
+   if(gone.length){MP.roster=MP.roster.filter(p=>!gone.includes(p));gone.forEach(p=>{dropRemote(p.id);toast(`${p.name} left`,2000)});mpUI()}
+   if(MP.roster[0])MP.roster[0].car=P.color;mpSend({t:'roster',roster:MP.roster,host:MP.id})}}
+ else if(now-MP.lastRoster>10000){toast('Lost contact with the host',4000);mpLeave(true);return}
+ if(onTrack()&&now-MP.lastSend>100){MP.lastSend=now;const r=trackInfo(S.x,S.z,S.ti),tp=trackPoint(r.s,r.i);
   let hr=S.h-Math.atan2(tp.tx,tp.tz);hr=((hr+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;
-  const m={t:'st',id:MP.id,name:MP.name,car:P.color,s:+r.s.toFixed(5),dn:+(r.d/TRACK.cfg.tw).toFixed(4),ha:+(S.y-r.h).toFixed(4),hr:+hr.toFixed(3),v:+S.vF.toFixed(2),air:S.air,vy:+S.vy.toFixed(2),br:braking,lt:P.lights,cr:R.me.cross,st:steerVis()};
-  if(MP.status==='host'){if(MP.roster[0])MP.roster[0].car=P.color;mpSend(m)}else{const c=MP.conns.get(MP.hostId);if(c&&c.open)c.send(m)}}
+  mpSend({t:'st',name:MP.name,car:P.color,s:+r.s.toFixed(5),dn:+(r.d/TRACK.cfg.tw).toFixed(4),ha:+(S.y-r.h).toFixed(4),hr:+hr.toFixed(3),v:+S.vF.toFixed(2),air:S.air,vy:+S.vy.toFixed(2),br:braking,lt:P.lights,cr:R.me.cross,st:steerVis()})}
  for(const o of MP.remotes.values())remoteUpdate(o,dt)}
 const steerVis=()=>+(fronts[0]?fronts[0].rotation.y:0).toFixed(2);
 function tagTex(name,color){const c=document.createElement('canvas');c.width=256;c.height=64;const g=c.getContext('2d');g.font='600 34px sans-serif';
@@ -810,10 +842,10 @@ function buildRemoteCar(o){if(o.g){world.remove(o.g);world.remove(o.blob)}const 
  const tag=new T.Sprite(new T.SpriteMaterial({map:tagTex(o.name,o.spec.color),transparent:true,depthWrite:false,toneMapped:false}));tag.scale.set(.2,.05,1);tag.position.y=.11;tag.renderOrder=5;g.add(tag);
  o.blob=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:blobT,transparent:true,depthWrite:false,opacity:.5}));o.blob.rotation.order='YXZ';world.add(o.blob);o.g=g}
 function dropRemote(id){const o=MP.remotes.get(id);if(!o)return;world.remove(o.g);world.remove(o.blob);MP.remotes.delete(id)}
-function remoteState(d){if(!d.id||d.id===MP.id)return;let o=MP.remotes.get(d.id)||makeRemote(d);
+function remoteState(d){d.id=d.from;if(!d.id||d.id===MP.id)return;let o=MP.remotes.get(d.id)||makeRemote(d);
  if((d.car|0)!==o.car){o.car=clamp(d.car|0,0,CARS.length-1);buildRemoteCar(o)}
  o.ts=d.s;o.dn=d.dn;o.ha=d.ha;o.hr=d.hr;o.v=d.v;o.air=d.air;o.brk=d.br;o.lt=d.lt;o.st=d.st||0;if(R.state!=='idle'&&o.fin==null)o.cross=d.cr|0;o.seen=performance.now();o.name=d.name||o.name}
-function remoteFin(d){const o=MP.remotes.get(d.id);if(!o||o.fin!=null)return;o.fin=d.time;o.cross=R.laps;if(R.me.fin!=null||!$('raceOv').hidden)showResults()}
+function remoteFin(d){const o=MP.remotes.get(d.from);if(!o||o.fin!=null)return;o.fin=d.time;o.cross=R.laps;if(R.me.fin!=null||!$('raceOv').hidden)showResults()}
 function remoteUpdate(o,dt){if(!onTrack()){o.g.visible=o.blob.visible=false;return}
  const stale=performance.now()-o.seen>4000;o.g.visible=o.blob.visible=!stale;if(stale)return;
  // glide towards the latest report, running ahead by its speed between packets
