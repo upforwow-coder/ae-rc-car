@@ -146,7 +146,7 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
   <section id="start">
     <div class="card">
       <h1>Drive a tiny RC car across your real floor</h1>
-      <p><small style="color:var(--hot)">Version 8</small><br>Pick what the car drives on. Steer bottom-left, pedals bottom-right, tap the floor to drop cones.</p>
+      <p><small style="color:var(--hot)">Version 9</small><br>Pick what the car drives on. Steer bottom-left, pedals bottom-right, tap the floor to drop cones.</p>
       <div class="opts">
         <button id="oXR" hidden><b>Room-scale AR</b><span>Anchors the car to your real floor with WebXR</span></button>
         <button id="oXR2" hidden><b>Room-scale AR — simple mode</b><span>Use this if room-scale AR shows a black screen</span></button>
@@ -179,7 +179,7 @@ const P={H:store.H??.8,T:store.T??55,F:store.F??(innerWidth<innerHeight?66:46),g
 const canvas=$('gl'),stage=$('stage'),video=$('cam'),photo=$('photo');
 const renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
-renderer.outputColorSpace=T.SRGBColorSpace;renderer.useLegacyLights=true;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.95;
+renderer.outputColorSpace=T.SRGBColorSpace;renderer.useLegacyLights=true;renderer.toneMapping=T.NoToneMapping;
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;
 renderer.setClearColor(0x000000,0);
 const scene=new T.Scene();
@@ -195,7 +195,7 @@ const world=new T.Group();scene.add(world);
  scene.environment=pm.fromScene(es,.02).texture;pm.dispose()}
 // building the reflections resets the clear colour to opaque black; make the 3D layer see-through again
 renderer.setClearColor(0x000000,0);
-scene.add(new T.HemisphereLight(0xffffff,0x5a544c,.35));
+scene.add(new T.HemisphereLight(0xffffff,0x6a645c,.55));
 const sun=new T.DirectionalLight(0xffffff,1.1);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
 Object.assign(sun.shadow.camera,{left:-1,right:1,top:1,bottom:-1,near:.3,far:5});sun.shadow.bias=-.0002;sun.shadow.normalBias=.001;
 world.add(sun);world.add(sun.target);
@@ -208,12 +208,12 @@ const chk=canvasTex(256,256,g=>{g.fillStyle='#3a3f44';g.fillRect(0,0,256,256);g.
 chk.wrapS=chk.wrapT=T.RepeatWrapping;chk.repeat.set(80,80);
 const studio=new T.Mesh(new T.PlaneGeometry(40,40),new T.MeshStandardMaterial({map:chk,roughness:.85}));
 studio.rotation.x=-Math.PI/2;studio.position.y=-.0005;studio.receiveShadow=true;world.add(studio);
-const grid=new T.GridHelper(6,48,0xff5a1f,0xffffff);grid.material.transparent=true;grid.material.opacity=.28;grid.material.depthWrite=false;world.add(grid);
-const ring=new T.Mesh(new T.RingGeometry(1,1.01,8),new T.MeshBasicMaterial({color:0xff5a1f,transparent:true,opacity:.75,depthWrite:false}));world.add(ring);
+const grid=new T.GridHelper(6,48,0xff5a1f,0xffffff);grid.material.transparent=true;grid.material.opacity=.4;grid.material.toneMapped=false;grid.material.depthWrite=false;world.add(grid);
+const ring=new T.Mesh(new T.RingGeometry(1,1.01,8),new T.MeshBasicMaterial({color:0xff5a1f,toneMapped:false}));world.add(ring);
 
 /* ---------- the car ---------- */
 const M={
- paint:new T.MeshPhysicalMaterial({color:0xff5a1f,roughness:.4,metalness:.05,clearcoat:1,clearcoatRoughness:.08,envMapIntensity:.55}),
+ paint:new T.MeshPhysicalMaterial({color:0xff6a14,roughness:.38,metalness:0,clearcoat:1,clearcoatRoughness:.06,envMapIntensity:.5}),
  dark:new T.MeshStandardMaterial({color:0x17191c,roughness:.75}),
  trim:new T.MeshStandardMaterial({color:0x0c0d0f,roughness:.35,metalness:.4}),
  glass:new T.MeshPhysicalMaterial({color:0x0b1016,roughness:.04,metalness:.9,clearcoat:1}),
@@ -312,7 +312,7 @@ const poolT=canvasTex(128,256,(g)=>{g.translate(64,256);g.scale(1,2.4);const r=g
 const pool=mesh(new T.PlaneGeometry(.55,1.1),new T.MeshBasicMaterial({map:poolT,color:0xfff0cc,blending:T.AdditiveBlending,transparent:true,depthWrite:false,toneMapped:false,opacity:.35}),0,.003,.76,model,-Math.PI/2,0,Math.PI);
 const spot=new T.SpotLight(0xfff0d6,0,1.6,.5,.7,1.5);spot.position.set(0,.03,.07);spot.target.position.set(0,0,.6);car.add(spot);car.add(spot.target);
 
-const COLORS=[['Blaze orange','#ff5a1f'],['Racing blue','#1f6bff'],['Taxi yellow','#ffc21a'],['Pearl white','#f2f2ee'],['Gloss black','#25272b'],['Lime','#6bd13a']];
+const COLORS=[['Blaze orange','#ff6a14'],['Racing blue','#2a7dff'],['Taxi yellow','#ffd200'],['Pearl white','#ffffff'],['Gloss black','#2a2d32'],['Lime','#5ef02a'],['Hot pink','#ff2d8a'],['Electric purple','#9a4dff']];
 $('sw').innerHTML=COLORS.map(([n,c],i)=>`<button class="swatch" data-i="${i}" style="--c:${c}" aria-label="${n}"></button>`).join('');
 function paint(i){P.color=i;store.color=i;save();M.paint.color.set(COLORS[i][1]);document.querySelectorAll('.swatch').forEach(b=>b.classList.toggle('on',+b.dataset.i===i))}
 
@@ -353,7 +353,7 @@ function fixedCam(){
 const chasePos=new T.Vector3(),look=new T.Vector3();
 function chaseCam(dt){const fx=Math.sin(S.h),fz=Math.cos(S.h);chasePos.set(S.x-fx*.3,.15,S.z-fz*.3);
  cam.position.lerp(chasePos,1-Math.exp(-4*dt));look.set(S.x+fx*.1,.02,S.z+fz*.1);cam.lookAt(look)}
-function updRing(){ring.geometry.dispose();ring.geometry=new T.RingGeometry(C.R-.008,C.R,128).rotateX(-Math.PI/2);
+function updRing(){ring.geometry.dispose();ring.geometry=new T.RingGeometry(C.R-.018,C.R,160).rotateX(-Math.PI/2);
  ring.position.set(C.x,.001,C.z);grid.position.set(C.x,0,C.z);grid.visible=ring.visible=P.grid}
 function recenter(){
  if(src==='xr'||P.view==='chase'){updRing();return}
@@ -508,7 +508,12 @@ $('file').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0
 function startStudio(){audioOn();hideStart();setSource('studio')}
 
 /* ---------- WebXR room-scale AR ---------- */
-const reticle=new T.Mesh(new T.RingGeometry(.035,.045,32).rotateX(-Math.PI/2),new T.MeshBasicMaterial({color:0xff5a1f}));
+const reticle=new T.Group();
+{const rm=c=>new T.MeshBasicMaterial({color:c,toneMapped:false,side:T.DoubleSide});
+ reticle.add(new T.Mesh(new T.RingGeometry(.03,.05,48).rotateX(-Math.PI/2),rm(0xff5a1f)));
+ reticle.add(new T.Mesh(new T.RingGeometry(.05,.054,48).rotateX(-Math.PI/2),rm(0xffffff)));
+ const f=new T.Mesh(new T.CircleGeometry(.03,40).rotateX(-Math.PI/2),new T.MeshBasicMaterial({color:0xff5a1f,transparent:true,opacity:.45,toneMapped:false,depthWrite:false}));reticle.add(f);
+ reticle.add(new T.Mesh(new T.CircleGeometry(.007,20).rotateX(-Math.PI/2),rm(0xffffff)))}
 reticle.matrixAutoUpdate=false;reticle.visible=false;scene.add(reticle);
 (async()=>{let ok=false;try{ok=!!navigator.xr&&await navigator.xr.isSessionSupported('immersive-ar')}catch(e){}
  if(ok)['oXR','xrBtn','oXR2','xrBtn2'].forEach(id=>$(id).hidden=false)})();
