@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AR camera tests</title>
+<style>
+body{margin:0;font:17px/1.45 system-ui,sans-serif;background:#16181b;color:#f4f4f2;padding:20px}
+h1{font-size:26px;margin:0 0 8px}
+p{color:#b9bdc2;margin:0 0 16px}
+button{display:block;width:100%;text-align:left;font:inherit;color:#16181b;background:#f4f4f2;border:0;border-radius:12px;padding:14px 16px;margin:0 0 10px;min-height:56px}
+button b{display:block}
+button small{color:#444}
+#log{white-space:pre-wrap;font:14px/1.4 monospace;color:#b9bdc2;margin-top:12px}
+#ov{position:fixed;inset:0;pointer-events:none;color:#fff;display:none}
+#ov .bar{position:absolute;left:12px;right:12px;top:12px;background:rgba(0,0,0,.6);padding:10px 14px;border-radius:12px;pointer-events:auto}
+#ov button{margin-top:8px;background:#ff5a1f;min-height:44px;text-align:center}
+</style>
+</head>
+<body>
+<h1>AR camera tests</h1>
+<p>Tap each test, look at whether you see the camera picture, then tap <b>End test</b>. Note which tests show the camera.</p>
+<button id="t1"><b>Test 1 — plain WebGL, with floor finding</b><small>Like the working demo, plus the floor detection the car uses</small></button>
+<button id="t2"><b>Test 2 — three.js, fresh canvas</b><small>3D library on a new drawing surface made at AR start</small></button>
+<button id="t3"><b>Test 3 — three.js, page canvas</b><small>3D library on a surface made at page load (how the app does it)</small></button>
+<button id="t4"><b>Test 4 — three.js, page canvas + app effects</b><small>Test 3 plus reflections, shadows and tone mapping</small></button>
+<div id="log"></div>
+<div id="ov"><div class="bar"><div id="lbl"></div><button id="end">End test</button></div></div>
+<canvas id="pagecanvas" style="width:1px;height:1px;position:absolute;left:-10px"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script>
+{
+const $=id=>document.getElementById(id),T=THREE;
+const log=m=>{$('log').textContent+=m+'\n'};
+let ses=null;
+$('end').onclick=()=>{if(ses)ses.end()};
+function opts(hit){const o={optionalFeatures:['dom-overlay'],domOverlay:{root:$('ov')}};if(hit)o.requiredFeatures=['hit-test'];return o}
+async function begin(name,hit){
+  if(!navigator.xr){log('WebXR not available');return null}
+  try{const s=await navigator.xr.requestSession('immersive-ar',opts(hit));ses=s;$('ov').style.display='block';
+    $('lbl').textContent=name+' — blend: '+s.environmentBlendMode+', overlay: '+(s.domOverlayState?s.domOverlayState.type:'none');
+    s.addEventListener('end',()=>{ses=null;$('ov').style.display='none';log(name+' ended')});return s}
+  catch(e){log(name+' failed to start: '+e.message);return null}}
+
+// Test 1: raw WebGL like the demo, with hit-test
+$('t1').onclick=async()=>{const s=await begin('Test 1',true);if(!s)return;
+  const gl=document.createElement('canvas').getContext('webgl',{xrCompatible:true});
+  s.updateRenderState({baseLayer:new XRWebGLLayer(s,gl)});const ref=await s.requestReferenceSpace('local');
+  const f=(t,fr)=>{fr.session.requestAnimationFrame(f);const L=fr.session.renderState.baseLayer;gl.bindFramebuffer(gl.FRAMEBUFFER,L.framebuffer);
+    gl.disable(gl.SCISSOR_TEST);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.SCISSOR_TEST);gl.scissor(L.framebufferWidth*.4,L.framebufferHeight*.45,L.framebufferWidth*.2,L.framebufferHeight*.1);
+    gl.clearColor(1,.35,.1,1);gl.clear(gl.COLOR_BUFFER_BIT);gl.disable(gl.SCISSOR_TEST)};
+  s.requestAnimationFrame(f)};
+
+function cubeScene(){const sc=new T.Scene();sc.add(new T.HemisphereLight(0xffffff,0x444444,1.5));
+  const c=new T.Mesh(new T.BoxGeometry(.1,.1,.1),new T.MeshStandardMaterial({color:0xff5a1f}));c.position.set(0,0,-.5);sc.add(c);
+  return{sc,c}}
+async function threeTest(name,r,cam,sc,c){
+  const s=await begin(name,true);if(!s)return;
+  r.xr.enabled=true;r.xr.setReferenceSpaceType('local');await r.xr.setSession(s);
+  r.setAnimationLoop(()=>{c.rotation.y+=.02;r.render(sc,cam)});
+  s.addEventListener('end',()=>{r.setAnimationLoop(null);r.xr.enabled=false})}
+
+// Test 2: three.js on a fresh xrCompatible context
+$('t2').onclick=async()=>{const cv=document.createElement('canvas');
+  const gl=cv.getContext('webgl2',{xrCompatible:true,alpha:true,antialias:true});
+  const r=new T.WebGLRenderer({canvas:cv,context:gl,alpha:true});r.setClearColor(0,0);
+  const{sc,c}=cubeScene();await threeTest('Test 2',r,new T.PerspectiveCamera(),sc,c)};
+
+// Tests 3 and 4: renderer made at page load, like the app
+const pr=new T.WebGLRenderer({canvas:$('pagecanvas'),antialias:true,alpha:true});pr.setClearColor(0,0);
+$('t3').onclick=async()=>{const{sc,c}=cubeScene();await threeTest('Test 3',pr,new T.PerspectiveCamera(),sc,c)};
+$('t4').onclick=async()=>{
+  const r=new T.WebGLRenderer({antialias:true,alpha:true});r.setClearColor(0,0);
+  r.outputColorSpace=T.SRGBColorSpace;r.toneMapping=T.ACESFilmicToneMapping;r.shadowMap.enabled=true;
+  const{sc,c}=cubeScene();const pm=new T.PMREMGenerator(r);const es=new T.Scene();es.add(new T.Mesh(new T.SphereGeometry(5),new T.MeshBasicMaterial({color:0x888888,side:T.BackSide})));
+  sc.environment=pm.fromScene(es,.02).texture;r.setClearColor(0,0);
+  const sun=new T.DirectionalLight(0xffffff,1);sun.castShadow=true;sun.position.set(1,2,0);sc.add(sun);c.castShadow=true;
+  await threeTest('Test 4',r,new T.PerspectiveCamera(),sc,c)};
+log('Ready. Secure page: '+window.isSecureContext);
+}
+</script>
+</body>
+</html>
