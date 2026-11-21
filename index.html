@@ -220,7 +220,7 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
     <div class="card">
       <div id="step1">
         <h1>Pick your racer</h1>
-        <p><small style="color:var(--hot)">Version 20</small><br>Swipe through the packs and tap one to choose it.</p>
+        <p><small style="color:var(--hot)">Version 21</small><br>Swipe through the packs and tap one to choose it.</p>
         <div class="sw" id="sw0"></div>
         <button id="goFloor" class="go">Next: choose your floor</button>
       </div>
@@ -523,12 +523,13 @@ function centerline(k){const P=TRACK,X=[],Z=[];P.px=[];P.pz=[];P.tx=[];P.tz=[];P
  for(let i=0;i<TR_N;i++){const t=i/TR_N*Math.PI*2;X.push(k*(3.4*Math.cos(t)+.35*Math.cos(3*t)));Z.push(k*(2.4*Math.sin(t)+.7*Math.sin(2*t)))}
  let L=0;const cum=[0];for(let i=0;i<TR_N;i++){const j=(i+1)%TR_N,l=Math.hypot(X[j]-X[i],Z[j]-Z[i]);P.seg.push(l);L+=l;cum.push(L)}
  P.len=L;for(let i=0;i<TR_N;i++){const a=(i+TR_N-1)%TR_N,b=(i+1)%TR_N,dx=X[b]-X[a],dz=Z[b]-Z[a],l=Math.hypot(dx,dz);
-  P.px.push(X[i]);P.pz.push(Z[i]);P.tx.push(dx/l);P.tz.push(dz/l);P.s.push(cum[i]/L)}}
+  P.px.push(X[i]);P.pz.push(Z[i]);P.tx.push(dx/l);P.tz.push(dz/l);P.s.push(cum[i]/L)}
+ P.ux=[];P.uz=[];for(let i=0;i<TR_N;i++){const j=(i+1)%TR_N;P.ux.push((X[j]-X[i])/P.seg[i]);P.uz.push((Z[j]-Z[i])/P.seg[i])}}
 // nearest point on the centreline: segment index, along-track fraction s and signed sideways offset d
 function nearest(x,z,hint){const P=TRACK,N=TR_N;let bi=0,bd=1e9;
  const test=i=>{i=(i+N)%N;const dx=x-P.px[i],dz=z-P.pz[i],q=dx*dx+dz*dz;if(q<bd){bd=q;bi=i}};
  if(hint!=null&&hint>=0)for(let k=-24;k<=24;k++)test(hint+k);
- else{for(let i=0;i<N;i+=8)test(i);const c=bi;for(let k=-8;k<=8;k++)test(c+k)}
+ if(hint==null||hint<0||bd>.36){bd=1e9;for(let i=0;i<N;i+=8)test(i);const c=bi;for(let k=-8;k<=8;k++)test(c+k)}
  let i=bi;const dx=x-P.px[i],dz=z-P.pz[i];let u=dx*P.tx[i]+dz*P.tz[i];
  if(u<0){i=(i+N-1)%N;u+=P.seg[i]}
  const dx2=x-P.px[i],dz2=z-P.pz[i];u=clamp(dx2*P.tx[i]+dz2*P.tz[i],0,P.seg[i]);
@@ -536,10 +537,19 @@ function nearest(x,z,hint){const P=TRACK,N=TR_N;let bi=0,bd=1e9;
 const edges=()=>{const e0=TRACK.cfg.tw/2,e1=e0+.1;return[e0,e1,TRACK.cfg.ar?e1+.09:e0+.55]};
 function heightAt(s,ad,x,z){const[e0,e1,e2]=edges(),hp=prof(s);
  if(ad<=e0)return hp;if(ad<e1)return hp+.025*Math.sin((ad-e0)/(e1-e0)*Math.PI);const k=sstep((ad-e1)/(e2-e1));return hp*(1-k)+grassH(x,z)*k}
-function trackInfo(x,z,hint){const r=nearest(x,z,hint),ad=Math.abs(r.d);r.h=heightAt(r.s,ad,x,z);r.off=ad>TRACK.cfg.tw/2+.04;return r}
+let SGRID=null;const SG=.3,gkey=(cx,cz)=>(cx+5000)*10000+(cz+5000);
+function buildSegGrid(){const P=TRACK,R=edges()[2]+.02;SGRID=new Map();
+ for(let i=0;i<TR_N;i++){const j=(i+1)%TR_N,x0=Math.min(P.px[i],P.px[j])-R,x1=Math.max(P.px[i],P.px[j])+R,z0=Math.min(P.pz[i],P.pz[j])-R,z1=Math.max(P.pz[i],P.pz[j])+R;
+  for(let cx=Math.floor(x0/SG);cx<=Math.floor(x1/SG);cx++)for(let cz=Math.floor(z0/SG);cz<=Math.floor(z1/SG);cz++){const k=gkey(cx,cz);let l=SGRID.get(k);if(!l)SGRID.set(k,l=[]);l.push(i)}}}
+function heightField(x,z){let h=grassH(x,z);const l=SGRID&&SGRID.get(gkey(Math.floor(x/SG),Math.floor(z/SG)));if(!l)return h;
+ const P=TRACK,e2=edges()[2];
+ for(const i of l){const dx=x-P.px[i],dz=z-P.pz[i],u=clamp(dx*P.ux[i]+dz*P.uz[i],0,P.seg[i]),ex=dx-P.ux[i]*u,ez=dz-P.uz[i]*u,dist=Math.sqrt(ex*ex+ez*ez);
+  if(dist>=e2)continue;const v=heightAt((P.s[i]+u/P.len)%1,dist,x,z);if(v>h)h=v}
+ return h}
+function trackInfo(x,z,hint){const r=nearest(x,z,hint),ad=Math.abs(r.d);r.h=heightField(x,z);r.off=ad>TRACK.cfg.tw/2+.04;return r}
 let XRtrack=false;
 const onTrack=()=>TRACK.ready&&((src==='track'&&!TRACK.cfg.ar)||(src==='xr'&&XRtrack&&TRACK.cfg.ar));
-function groundAt(x,z,hint){return onTrack()?trackInfo(x,z,hint).h:0}
+function groundAt(x,z,hint){return onTrack()?heightField(x,z):0}
 const GRAV=()=>onTrack()?P.tg:9.8;   // floatier jumps on the dirt (adjustable in Setup)
 
 function dirtColor(s,ad,x,z,c){const n=.5+.5*Math.sin(x*23.1+z*17.7)*Math.cos(x*9.3-z*13.1),[e0,e1,e2]=edges();let rr,gg,bb;
@@ -550,24 +560,24 @@ function dirtColor(s,ad,x,z,c){const n=.5+.5*Math.sin(x*23.1+z*17.7)*Math.cos(x*
 function setupTrack(ar){
  if(TRACK.ready&&TRACK.cfg.ar===ar)return;
  if(TRACK.group){world.remove(TRACK.group);TRACK.group.traverse(o=>{if(o.geometry&&o.geometry!==tyreGeo)o.geometry.dispose()})}
- TRACK.cfg=ar?{k:.42,tw:.42,hk:.8,ar:true}:{k:1,tw:.55,hk:1,ar:false};TRACK.colliders=[];TRACK.ready=false;centerline(TRACK.cfg.k);
+ TRACK.cfg=ar?{k:.42,tw:.42,hk:.8,ar:true}:{k:1,tw:.55,hk:1,ar:false};TRACK.colliders=[];TRACK.ready=false;centerline(TRACK.cfg.k);buildSegGrid();
  const G=new T.Group();TRACK.group=G;world.add(G);PAR=G;const c=new T.Color();let mesh;
  if(!ar){// full park: a terrain grid painted dirt → berm → grass
   const SZ=11,SEG=220,geo=new T.PlaneGeometry(SZ,SZ,SEG,SEG);geo.rotateX(-Math.PI/2);const pos=geo.attributes.position,col=new Float32Array(pos.count*3);
-  for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i),r=nearest(x,z),ad=Math.abs(r.d);pos.setY(i,heightAt(r.s,ad,x,z));dirtColor(r.s,ad,x,z,c);col.set([c.r,c.g,c.b],i*3)}
+  for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i),r=nearest(x,z),ad=Math.abs(r.d);pos.setY(i,heightField(x,z));dirtColor(r.s,ad,x,z,c);col.set([c.r,c.g,c.b],i*3)}
   geo.setAttribute('color',new T.BufferAttribute(col,3));geo.computeVertexNormals();mesh=new T.Mesh(geo,toon(0xffffff,{vertexColors:true}));
   const far=new T.Mesh(new T.PlaneGeometry(90,90),toon(0x6fbf4a));far.rotation.x=-Math.PI/2;far.position.y=-.03;far.receiveShadow=true;G.add(far)}
  else{// room AR: only a dirt ribbon with berms and a skirt down to the real floor
   const[,,e2]=edges(),L=17,P=TRACK,pos=[],col=[],idx=[];
   for(let i=0;i<=TR_N;i++){const ii=i%TR_N;for(let j=0;j<L;j++){const d=-e2+2*e2*j/(L-1),x=P.px[ii]+P.tz[ii]*d,z=P.pz[ii]-P.tx[ii]*d,ad=Math.abs(d);
-    pos.push(x,j===0||j===L-1?0:heightAt(P.s[ii],ad,x,z),z);dirtColor(P.s[ii],ad,x,z,c);col.push(c.r,c.g,c.b)}}
+    pos.push(x,j===0||j===L-1?0:heightField(x,z),z);dirtColor(P.s[ii],ad,x,z,c);col.push(c.r,c.g,c.b)}}
   for(let i=0;i<TR_N;i++)for(let j=0;j<L-1;j++){const a=i*L+j,b=a+L;idx.push(a,b,a+1,a+1,b,b+1)}
   const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));geo.setAttribute('color',new T.Float32BufferAttribute(col,3));geo.setIndex(idx);geo.computeVertexNormals();
   mesh=new T.Mesh(geo,toon(0xffffff,{vertexColors:true,side:T.DoubleSide}))}
  mesh.receiveShadow=true;mesh.castShadow=ar;G.add(mesh);TRACK.mesh=mesh;
  const P=TRACK,tw=TRACK.cfg.tw,at=(i,side,off)=>{i=(i+TR_N)%TR_N;return[P.px[i]+P.tz[i]*side*off,P.pz[i]-P.tx[i]*side*off]};
  const yaw=i=>Math.atan2(P.tx[i],P.tz[i]),outSide=i=>(P.px[i]*P.tz[i]-P.pz[i]*P.tx[i])>0?1:-1;
- const gH=(x,z)=>{const r=nearest(x,z);return heightAt(r.s,Math.abs(r.d),x,z)};
+ const gH=(x,z)=>heightField(x,z);
  // start / finish
  const chk=decalTex('sfchk',256,32,(g)=>{for(let i=0;i<32;i++)for(let j=0;j<4;j++){g.fillStyle=(i+j)%2?'#1c1d21':'#fff';g.fillRect(i*8,j*8,8,8)}});
  const line=new T.Mesh(new T.PlaneGeometry(tw,.06),new T.MeshBasicMaterial({map:chk,polygonOffset:true,polygonOffsetFactor:-3,toneMapped:false}));
@@ -712,7 +722,7 @@ function botUpdate(b,dt){const TK=TRACK,racing=R.state==='race'||R.state==='done
  b.steer+=(-dh*4-b.steer)*Math.min(1,dt*8);b.h+=dh*Math.min(1,dt*10);
  // same jump physics as the player
  const g=GRAV(),gN=groundAt(b.x,b.z,b.i);
- if(!b.air){const ball=b.y+b.vy*dt-.5*g*dt*dt;if(b.vy>.3&&gN<ball-.003){b.air=true;b.y=ball;b.vy-=g*dt}else{b.vy=clamp((gN-b.y)/dt,-4,4);b.y=gN}}
+ if(!b.air){const ball=b.y+b.vy*dt-.5*g*dt*dt;if(b.vy>.3&&gN<ball-.003){b.air=true;b.y=ball;b.vy-=g*dt}else{b.vy=clamp((gN-b.y)/dt,-4,b.v*1.1+.2);b.y=gN}}
  else{b.vy-=g*dt;b.y+=b.vy*dt;if(b.y<=gN){b.air=false;b.y=gN;b.vy=0}}
  // bump with the player
  if(dp<.1&&Math.abs(S.y-b.y)<.06){const nx2=dxp/(dp||1),nz2=dzp/(dp||1),push=(.1-dp);S.x+=nx2*push*.6;S.z+=nz2*push*.6;S.vx+=nx2*.6;S.vz+=nz2*.6;b.v*=.92;if(push>.02)thud('cone',.5)}
@@ -905,7 +915,7 @@ function step(dt){
  const gNew=groundAt(S.x,S.z,S.ti);
  if(!S.air){const g=GRAV(),ball=S.y+S.vy*dt-.5*g*dt*dt;
   if(onTrack()&&S.vy>.3&&gNew<ball-.003){S.air=true;S.y=ball;S.vy-=g*dt}
-  else{S.vy=clamp((gNew-S.y)/dt,-4,4);S.y=gNew}}
+  else{S.vy=clamp((gNew-S.y)/dt,-4,Math.abs(S.vF)*1.1+.2);S.y=gNew}}
  else{S.vy-=GRAV()*dt;S.y+=S.vy*dt;if(S.y<=gNew){const imp=-S.vy;S.air=false;S.y=gNew;S.vy=0;S.squash=Math.min(.012,imp*.006);if(imp>.5)thud('wall',imp/3.5)}}
  for(const o of(onTrack()?TRACK.colliders:[])){const cx=S.x-o.x,cz=S.z-o.z,cd=Math.hypot(cx,cz),rr=o.r+.045;
   if(cd<rr&&S.y<groundAt(o.x,o.z)+.08){const nx=cx/(cd||1),nz=cz/(cd||1);S.x=o.x+nx*rr;S.z=o.z+nz*rr;const vn=S.vx*nx+S.vz*nz;
