@@ -116,6 +116,15 @@ label.chk input{width:22px;height:22px;accent-color:var(--hot)}
 .opts span{color:var(--mute);font-size:14px}
 :focus-visible{outline:3px solid #fff;outline-offset:2px}
 [hidden]{display:none!important}
+#gate{position:fixed;inset:0;z-index:6;display:grid;place-items:center;align-content:center;gap:18px;pointer-events:auto;background:radial-gradient(circle at 50% 45%,#2a2e34,#0e0f11 70%)}
+#gate .gbtn{display:grid;place-items:center;align-content:center;gap:14px;width:min(78vw,300px);aspect-ratio:1;border-radius:50%;border:0;background:radial-gradient(circle at 40% 35%,#ff8a4d,#ff5a1f 55%,#c23c0c);color:#16181b;
+ box-shadow:0 0 0 8px rgba(255,90,31,.25),0 0 0 18px rgba(255,90,31,.12),0 18px 40px rgba(0,0,0,.6);animation:gpulse 1.6s ease-in-out infinite}
+#gate .mk{font:600 clamp(52px,16vw,76px)/.9 'Chakra Petch',sans-serif;font-style:italic;color:#fff;-webkit-text-stroke:2px #16181b;text-shadow:0 4px 0 #16181b}
+#gate .mk b{color:#16181b;-webkit-text-stroke:0;text-shadow:none;margin-left:.1em}
+#gate .go2{font:600 16px/1.2 'Chakra Petch',sans-serif;letter-spacing:.12em;text-transform:uppercase;max-width:70%}
+#gate small{color:#b9bdc2;font-size:14px}
+@keyframes gpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+@media (prefers-reduced-motion:reduce){#gate .gbtn{animation:none}}
 body.intro .top,body.intro .sub,body.intro .ctrl,body.intro #toast,body.intro #raceBtn{visibility:hidden}
 #intro{position:fixed;inset:0;pointer-events:auto;overflow:hidden;z-index:5;background:radial-gradient(ellipse at 50% 120%,transparent 40%,rgba(0,0,0,.55))}
 #intro.out{animation:introOut .45s ease forwards}
@@ -241,12 +250,14 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
       <p class="note">Up to 6 racers on the dirt track: in the park or on their own floor with AR dirt track. The host starts races. Rooms connect through a free public message server (MQTT) over a normal secure web connection, so they work on Wi-Fi and mobile data. Keep the host's app open on screen while others join.</p>
       <h3>Course</h3>
       <div class="seg"><button id="bSlalom">Slalom</button><button id="bRing">Cone ring</button><button id="bClear">Clear cones</button></div>
-      <label class="chk"><input type="checkbox" id="cSnd" checked> Motor sound</label>
+      <label class="chk"><input type="checkbox" id="cSnd" checked> Sound</label>
+      <label class="chk"><input type="checkbox" id="cMusic" checked> Menu music</label>
       <label class="rng">Volume <output id="oV"></output><input type="range" id="rV" min="0" max="1" step="0.05"></label>
       <p class="note">Pedals are analog: press low for a little, slide up for more; screens that sense touch pressure use it too. A Bluetooth game controller works (triggers for gas and brake, left stick to steer). Keyboard: arrows or WASD, space to brake, L for lights. Live camera and room-scale AR need camera access; if this viewer blocks it, use a photo of your floor, or open the standalone file from an https address in your phone's browser (Chrome on Android for room-scale AR).</p>
     </div>
   </section>
 
+  <section id="gate"><button class="gbtn"><span class="mk">AR<b>RC</b></span><span class="go2">Tap to start your engines</span></button><small>Turn your sound on</small></section>
   <section id="intro" hidden aria-label="Intro — tap to skip">
     <div class="streaks"><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <div class="flash"></div>
@@ -257,7 +268,7 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
     <div class="card">
       <div id="step1">
         <h1>Pick your racer</h1>
-        <p><small style="color:var(--hot)">Version 22</small><br>Swipe through the packs and tap one to choose it.</p>
+        <p><small style="color:var(--hot)">Version 23</small><br>Swipe through the packs and tap one to choose it.</p>
         <div class="sw" id="sw0"></div>
         <button id="goFloor" class="go">Next: choose your floor</button>
       </div>
@@ -293,7 +304,7 @@ function toast(m,ms=3800){toastEl.textContent=m;toastEl.classList.add('show');cl
 /* Car is modelled in 1:10 units, then scaled to 30% (≈1:32, 13 cm long). */
 const SC=0.3, FULL=32;let WB=.26*SC, WR=.05*SC, TRK=.095*SC, AXL=.13*SC, HIT=.063;
 const P={H:store.H??.8,T:store.T??55,F:store.F??(innerWidth<innerHeight?66:46),grid:store.grid??true,gyro:true,view:'fixed',
- color:store.color??0,vmax:store.vmax2??4,snd:true,vol:store.vol??.7,lights:store.lights??true,tg:store.tg??2.5,stK:store.stK??1};
+ color:store.color??0,vmax:store.vmax2??4,snd:true,vol:store.vol??.7,lights:store.lights??true,music:store.music??true,tg:store.tg??2.5,stK:store.stK??1};
 
 /* ---------- renderer & scene ---------- */
 const canvas=$('gl'),stage=$('stage'),video=$('cam'),photo=$('photo');
@@ -509,9 +520,11 @@ function buildPicker(){
  for(const id of PICKERS){const el=$(id);el.innerHTML=html;
   el.querySelectorAll('canvas').forEach((cv,i)=>{const sh=carFrames(i,1);if(sh)cv.getContext('2d').drawImage(sh,0,0)});
   el.addEventListener('scroll',()=>flow(el),{passive:true});
-  el.addEventListener('click',e=>{const b=e.target.closest('.pack');if(b)selectCar(+b.dataset.i)})}}
+  el.addEventListener('click',e=>{const b=e.target.closest('.pack');if(b){uiPick();selectCar(+b.dataset.i)}})}}
 // coverflow: cards turn and recede the further they are from the middle
-function flow(sw){const r=sw.getBoundingClientRect(),cx=r.left+r.width/2;
+function flow(sw){const r=sw.getBoundingClientRect(),cx=r.left+r.width/2;let near=-1,nd=9;
+ for(const[k,p]of[...sw.children].entries()){const b=p.getBoundingClientRect(),dd=Math.abs(b.left+b.width/2-cx)/b.width;if(dd<nd){nd=dd;near=k}}
+ if(sw.offsetParent&&near!==sw._near){if(sw._near!=null&&nd<.35)uiTick();sw._near=near}
  for(const p of sw.children){const b=p.getBoundingClientRect(),d=clamp((b.left+b.width/2-cx)/b.width,-2,2);
   p.style.setProperty('--ry',(-d*32).toFixed(1)+'deg');p.style.setProperty('--tz',(-Math.abs(d)*46).toFixed(0)+'px');p.style.setProperty('--gl',d.toFixed(2));
   p.style.zIndex=p.classList.contains('on')?3:String(2-Math.round(Math.abs(d)))}}
@@ -922,9 +935,9 @@ function shareInvite(){const url=location.origin+location.pathname+'#join-'+MP.c
 
 /* ---------- intro: the car rockets in, drifts to a stop, logo slams down ---------- */
 const INTRO={on:!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches),t:0,marked:0};
-function introStart(){if(!INTRO.on){$('intro').hidden=true;return}$('start').hidden=true;$('intro').hidden=false;$('intro').classList.add('go');document.body.classList.add('intro');
+function introStart(){if(!INTRO.on){$('intro').hidden=true;$('start').hidden=false;requestAnimationFrame(()=>centerPack(false));return}$('start').hidden=true;$('intro').hidden=false;$('intro').classList.add('go');document.body.classList.add('intro');
  P.lights=true;putCar(0,-3.4,0);clearSkids()}
-function introEnd(){if(!INTRO.on)return;INTRO.on=false;document.body.classList.remove('intro');$('intro').classList.add('out');setTimeout(()=>{$('intro').hidden=true},450);
+function introEnd(){if(!INTRO.on)return;INTRO.on=false;musicStart();document.body.classList.remove('intro');$('intro').classList.add('out');setTimeout(()=>{$('intro').hidden=true},450);
  $('start').hidden=false;P.lights=store.lights??true;clearSkids();reset();requestAnimationFrame(()=>centerPack(false))}
 const easeOut=k=>1-Math.pow(1-clamp(k,0,1),3),easeIO=k=>{k=clamp(k,0,1);return k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2};
 function introTick(dt){const t=(INTRO.t+=dt);
@@ -1082,6 +1095,52 @@ function thud(kind,str){if(!ac||!A.bus||!P.snd)return;const t=ac.currentTime,con
  const o=ac.createOscillator();o.frequency.setValueAtTime(cone?950:230,t);o.frequency.exponentialRampToValueAtTime(cone?420:70,t+.1);
  const og=ac.createGain();og.gain.setValueAtTime(a*.5,t);og.gain.exponentialRampToValueAtTime(.001,t+.12);o.connect(og);og.connect(A.bus);o.start(t);o.stop(t+.15)}
 
+/* ---------- music + menu/intro sound effects (all synthesized) ---------- */
+const MUS={on:false,next:0,step:0,timer:null,g:null,bpm:140};
+const mtof=n=>440*Math.pow(2,(n-69)/12);
+// 4-bar loop in C: C – Am – F – G. Lead plays eighth notes; null = rest
+const LEAD=[[76,79,84,79,76,null,74,76],[72,76,81,76,72,null,71,72],[69,72,77,72,69,72,74,76],[79,null,77,76,74,null,71,74]];
+const LEAD2=[[84,null,83,84,88,null,86,84],[81,null,79,81,84,null,83,81],[77,79,81,77,72,74,76,77],[79,81,83,86,84,null,83,79]];
+const BASS=[36,33,29,31],CHORD=[[60,64,67],[57,60,64],[53,57,60],[55,59,62]];
+function sfxOut(){return A.master}
+function blip(type,f,t,dur,gain,dest,f2){const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+dur);
+ g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(gain,t+.005);g.gain.exponentialRampToValueAtTime(.0008,t+dur);o.connect(g);g.connect(dest);o.start(t);o.stop(t+dur+.02)}
+function noiseHit(t,dur,gain,type,freq,q,dest){const s=ac.createBufferSource();s.buffer=A.nb;const f=ac.createBiquadFilter();f.type=type;f.frequency.value=freq;f.Q.value=q||1;
+ const g=ac.createGain();g.gain.setValueAtTime(gain,t);g.gain.exponentialRampToValueAtTime(.0008,t+dur);s.connect(f);f.connect(g);g.connect(dest);s.start(t,Math.random());s.stop(t+dur+.02)}
+function playStep(st,t,sp){const bar=Math.floor(st/16)%4,s=st%16,half=st>=64,d=MUS.g;
+ if(s%8===0)blip('sine',150,t,.16,.9,d,42);                                   // kick
+ if(s===4||s===12){noiseHit(t,.14,.35,'bandpass',1900,.8,d);blip('triangle',190,t,.08,.15,d,120)} // snare
+ if(s%2===1)noiseHit(t,.035,s%4===3?.14:.07,'highpass',7500,1,d);             // hats
+ if(s%2===0)blip('square',mtof(BASS[bar]+(s%4===2?12:0)),t,sp*1.7,.07,d);     // bass
+ if(s%2===0){const n=(half?LEAD2:LEAD)[bar][s/2];if(n)blip('square',mtof(n),t,sp*1.8,.055,d)} // lead
+ blip('triangle',mtof(CHORD[bar][s%3]+12),t,sp*.9,.03,d)}                      // arpeggio
+function musicSched(){if(!ac)return;const sp=60/MUS.bpm/4;while(MUS.next<ac.currentTime+.15){playStep(MUS.step,MUS.next,sp);MUS.next+=sp;MUS.step=(MUS.step+1)%128}}
+function musicStart(at){if(!ac||!A.master||!P.snd||!P.music||MUS.on)return;MUS.g=ac.createGain();const t=Math.max(at||0,ac.currentTime+.03);
+ MUS.g.gain.setValueAtTime(0,ac.currentTime);MUS.g.gain.setValueAtTime(.42,t);MUS.g.connect(A.master);MUS.on=true;MUS.step=0;MUS.next=t;musicSched();MUS.timer=setInterval(musicSched,25)}
+function musicStop(fade=.9){if(!MUS.on)return;MUS.on=false;clearInterval(MUS.timer);const g=MUS.g,t=ac.currentTime;
+ g.gain.cancelScheduledValues(t);g.gain.setValueAtTime(g.gain.value,t);g.gain.linearRampToValueAtTime(0,t+fade);setTimeout(()=>{try{g.disconnect()}catch(_){}},fade*1000+300)}
+// intro: rev and whoosh as it charges in, screech through the drift, boom on the logo, sparkle on the shine
+function introSounds(){if(!ac||!A.master||!P.snd)return;const t0=ac.currentTime+.05,o=sfxOut();
+ {const s=ac.createOscillator(),f=ac.createBiquadFilter(),g=ac.createGain();s.type='sawtooth';f.type='lowpass';f.Q.value=6;
+  s.frequency.setValueAtTime(110,t0);s.frequency.exponentialRampToValueAtTime(560,t0+1.3);s.frequency.exponentialRampToValueAtTime(240,t0+2.1);
+  f.frequency.setValueAtTime(600,t0);f.frequency.exponentialRampToValueAtTime(3200,t0+1.3);f.frequency.exponentialRampToValueAtTime(900,t0+2.1);
+  g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(.09,t0+.15);g.gain.setValueAtTime(.09,t0+1.3);g.gain.exponentialRampToValueAtTime(.001,t0+2.2);
+  s.connect(f);f.connect(g);g.connect(o);s.start(t0);s.stop(t0+2.3)}
+ {const s=ac.createBufferSource();s.buffer=A.nb;s.loop=true;const f=ac.createBiquadFilter(),g=ac.createGain();f.type='bandpass';f.Q.value=1.2;
+  f.frequency.setValueAtTime(300,t0+.1);f.frequency.exponentialRampToValueAtTime(3500,t0+1.35);g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(.22,t0+1.2);g.gain.exponentialRampToValueAtTime(.001,t0+1.6);
+  s.connect(f);f.connect(g);g.connect(o);s.start(t0);s.stop(t0+1.7)}
+ {const ts=t0+1.35,s=ac.createBufferSource();s.buffer=A.nb;s.loop=true;const f=ac.createBiquadFilter(),g=ac.createGain();f.type='bandpass';f.frequency.value=2700;f.Q.value=9;
+  g.gain.setValueAtTime(0,ts);g.gain.linearRampToValueAtTime(.5,ts+.05);g.gain.setValueAtTime(.5,ts+.6);g.gain.exponentialRampToValueAtTime(.001,ts+.85);s.connect(f);f.connect(g);g.connect(o);s.start(ts);s.stop(ts+.9);
+  const q=ac.createOscillator(),qg=ac.createGain(),v=ac.createOscillator(),vg=ac.createGain();q.type='triangle';q.frequency.value=1950;v.frequency.value=31;vg.gain.value=110;v.connect(vg);vg.connect(q.frequency);
+  qg.gain.setValueAtTime(0,ts);qg.gain.linearRampToValueAtTime(.06,ts+.05);qg.gain.exponentialRampToValueAtTime(.001,ts+.85);q.connect(qg);qg.connect(o);q.start(ts);v.start(ts);q.stop(ts+.9);v.stop(ts+.9)}
+ {const tb=t0+2.2;blip('sine',130,tb,.7,.9,o,36);noiseHit(tb,.35,.5,'lowpass',900,.7,o);noiseHit(tb,1.3,.16,'highpass',5000,.7,o)}
+ [84,88,91,96,100].forEach((n,i)=>blip('square',mtof(n),t0+2.85+i*.06,.22,.05,o));
+ musicStart(t0+2.2)}
+// menu clicks
+function uiTick(){if(ac&&A.master&&P.snd)noiseHit(ac.currentTime,.03,.12,'highpass',3500,1,A.master)}
+function uiPick(){if(ac&&A.master&&P.snd){const t=ac.currentTime;blip('square',660,t,.08,.07,A.master);blip('square',990,t+.07,.12,.07,A.master)}}
+function uiGo(){if(ac&&A.master&&P.snd){const t=ac.currentTime;[72,76,79,84].forEach((n,i)=>blip('triangle',mtof(n),t+i*.05,.25,.09,A.master))}}
+
 /* ---------- floor sources ---------- */
 function setSource(s){
  const wasTrack=src==='track';src=s;video.style.display=s==='live'?'block':'none';photo.style.display=s==='photo'?'block':'none';
@@ -1094,7 +1153,7 @@ function setSource(s){
  $('badge').textContent={live:'Live camera',photo:'Photo floor',studio:'Studio floor',xr:XRtrack?'AR dirt track':'Room-scale AR',track:'Dirt track'}[s];
  document.querySelectorAll('#srcSeg button').forEach(b=>b.classList.toggle('on',b.dataset.src===s));
  if(s!=='xr')reset()}
-const hideStart=()=>{$('start').hidden=true;if(MP.pendingJoin){const c=MP.pendingJoin;MP.pendingJoin=null;setTimeout(()=>mpJoin(c),300)}};
+const hideStart=()=>{$('start').hidden=true;musicStop();if(MP.pendingJoin){const c=MP.pendingJoin;MP.pendingJoin=null;setTimeout(()=>mpJoin(c),300)}};
 async function startLive(){
  audioOn();const DOE=window.DeviceOrientationEvent;
  const perm=(DOE&&typeof DOE.requestPermission==='function')?DOE.requestPermission().catch(()=>{}):null;
@@ -1265,7 +1324,8 @@ const keyOf={H:'H',T:'T',F:'F',V:'vol',G:'tg',S:'stK'};
   size();recenter();if(Math.hypot(S.x-C.x,S.z-C.z)>C.R)putCar(C.x,C.z,S.h)})});
 const cg=$('cGrid');cg.checked=P.grid;cg.onchange=()=>{P.grid=cg.checked;store.grid=P.grid;save();updRing()};
 $('cGyro').onchange=e=>{P.gyro=e.target.checked;a0=null;reset()};
-$('cSnd').onchange=e=>{P.snd=e.target.checked;if(P.snd)audioOn()};
+$('cSnd').onchange=e=>{P.snd=e.target.checked;if(P.snd)audioOn();else musicStop(.2)};
+{const cm=$('cMusic');cm.checked=P.music;cm.onchange=()=>{P.music=cm.checked;store.music=P.music;save();if(!P.music)musicStop(.3);else if(!$('start').hidden){audioOn();musicStart()}}}
 function course(kind){clearCones();const yaw=renderer.xr.isPresenting?0:cam.rotation.y,rx=Math.cos(yaw),rz=-Math.sin(yaw),R=Math.min(C.R,1.2);
  if(kind==='slalom'){for(let i=0;i<6;i++){const t=-.55+i*.24;addCone(C.x+rx*R*t,C.z+rz*R*t)}putCar(C.x-rx*R*.85,C.z-rz*R*.85,Math.atan2(rx,rz))}
  else{for(let i=0;i<8;i++){const a=i/8*Math.PI*2;addCone(C.x+Math.cos(a)*R*.45,C.z+Math.sin(a)*R*.45)}putCar(C.x,C.z,S.h)}
@@ -1277,9 +1337,11 @@ function size(){if(renderer.xr.isPresenting)return;const w=stage.clientWidth,h=s
  renderer.setSize(w,h,false);cam.aspect=w/h;cam.fov=P.F;cam.updateProjectionMatrix()}
 const ro=new ResizeObserver(size);ro.observe(stage);size();
 buildPicker();selectCar(P.color);setSource('studio');
-$('goFloor').onclick=()=>{$('step1').hidden=true;$('step2').hidden=false};
+$('goFloor').onclick=()=>{uiGo();$('step1').hidden=true;$('step2').hidden=false};
 $('backCar').onclick=()=>{$('step2').hidden=true;$('step1').hidden=false;requestAnimationFrame(()=>centerPack(false))};
-$('intro').addEventListener('pointerdown',()=>{if(INTRO.t>.3)introEnd()});introStart();
+$('intro').addEventListener('pointerdown',()=>{if(INTRO.t>.3)introEnd()});
+$('gate').addEventListener('click',()=>{audioOn();$('gate').hidden=true;if(INTRO.on){introStart();introSounds()}else{introStart();musicStart()}});
+$('start').hidden=true;
 requestAnimationFrame(()=>centerPack(false));
 let last=0,hudT=0,h3T=0,errShown=false;
 function frameErr(e){console.error(e);if(!errShown){errShown=true;toast('Something went wrong: '+(e&&e.message||e),8000)}}
