@@ -116,6 +116,37 @@ label.chk input{width:22px;height:22px;accent-color:var(--hot)}
 .opts span{color:var(--mute);font-size:14px}
 :focus-visible{outline:3px solid #fff;outline-offset:2px}
 [hidden]{display:none!important}
+body.intro .top,body.intro .sub,body.intro .ctrl,body.intro #toast,body.intro #raceBtn{visibility:hidden}
+#intro{position:fixed;inset:0;pointer-events:auto;overflow:hidden;z-index:5;background:radial-gradient(ellipse at 50% 120%,transparent 40%,rgba(0,0,0,.55))}
+#intro.out{animation:introOut .45s ease forwards}
+@keyframes introOut{to{opacity:0;transform:scale(1.08)}}
+#intro .streaks i{position:absolute;left:-40%;height:3px;width:40%;border-radius:3px;background:linear-gradient(90deg,transparent,#fff,#ffd200);opacity:0;filter:drop-shadow(0 0 6px #ff9a3c)}
+#intro.go .streaks i{animation:streak .5s linear infinite}
+#intro .streaks i:nth-child(1){top:18%;animation-delay:.05s!important}#intro .streaks i:nth-child(2){top:31%;animation-delay:.21s!important;width:55%}
+#intro .streaks i:nth-child(3){top:44%;animation-delay:.12s!important}#intro .streaks i:nth-child(4){top:58%;animation-delay:.33s!important;width:30%}
+#intro .streaks i:nth-child(5){top:71%;animation-delay:.27s!important}#intro .streaks i:nth-child(6){top:84%;animation-delay:.4s!important;width:50%}
+@keyframes streak{0%{transform:translateX(0);opacity:0}15%{opacity:.9}100%{transform:translateX(330%);opacity:0}}
+#intro.go .streaks{animation:hideAt 0s linear 1.4s forwards}
+@keyframes hideAt{to{opacity:0}}
+#intro .flash{position:absolute;inset:0;background:#fff;opacity:0}
+#intro.go .flash{animation:flash .55s ease-out 2.2s both}
+@keyframes flash{0%{opacity:0}12%{opacity:.95}100%{opacity:0}}
+#intro .logo{position:absolute;left:0;right:0;top:16%;text-align:center;opacity:0}
+#intro.go .logo{animation:slam .5s cubic-bezier(.2,1.6,.4,1) 2.2s both}
+@keyframes slam{0%{opacity:0;transform:scale(3.2) skewX(-12deg);filter:blur(8px)}60%{opacity:1;filter:blur(0)}100%{opacity:1;transform:scale(1) skewX(-12deg)}}
+#intro .mark{display:inline-block;font:600 clamp(72px,26vw,140px)/.9 'Chakra Petch',sans-serif;color:#fff;letter-spacing:-.02em;position:relative;
+ -webkit-text-stroke:3px #16181b;text-shadow:0 6px 0 #16181b,0 10px 24px rgba(0,0,0,.5);
+ background:linear-gradient(100deg,#fff 0 40%,#ffe9a8 47%,#fff 54% 100%);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+#intro.go .mark{animation:shine 1.1s ease-in-out 2.8s both}
+@keyframes shine{from{background-position:100% 0}to{background-position:0 0}}
+#intro .mark span{margin-left:.12em;background:linear-gradient(100deg,#ff5a1f 0 40%,#ffd200 47%,#ff5a1f 54% 100%);background-size:300% 100%;-webkit-background-clip:text;background-clip:text}
+#intro.go .mark span{animation:shine 1.1s ease-in-out 2.8s both}
+#intro .tag{display:inline-block;margin-top:10px;padding:4px 14px;border-radius:8px;background:#16181b;color:#ffd200;font:600 clamp(16px,4.5vw,22px)/1.3 'Chakra Petch',sans-serif;letter-spacing:.35em;text-transform:uppercase;opacity:0}
+#intro.go .tag{animation:tagIn .4s ease-out 2.55s both}
+@keyframes tagIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+#intro .tap{position:absolute;left:0;right:0;bottom:12%;text-align:center;color:#fff;font:600 18px 'Chakra Petch',sans-serif;letter-spacing:.2em;text-transform:uppercase;text-shadow:0 2px 6px rgba(0,0,0,.6);opacity:0}
+#intro.go .tap{animation:pulse 1.2s ease-in-out 3.1s infinite}
+@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
 label.txt{display:grid;gap:4px;margin:4px 0 10px;font-size:15px}
 label.txt input,.joinrow input{font:16px/1.2 Barlow,sans-serif;min-height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:#23262a;color:var(--ink)}
 .joinrow{display:flex;gap:8px;margin-top:8px}.joinrow input{flex:1;text-transform:uppercase;letter-spacing:.15em;font-weight:600}
@@ -193,10 +224,10 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
       <h3>Car</h3>
       <div class="sw" id="sw"></div>
       <div class="seg" id="spdSeg"><button data-v="1.6">Beginner speed</button><button data-v="4">Pro speed</button></div>
+      <label class="rng">Steering sensitivity <output id="oS"></output><input type="range" id="rS" min="0.4" max="1.6" step="0.05"></label>
       <div class="seg" id="viewSeg"><button data-v="fixed">Fixed view</button><button data-v="chase">Chase cam</button></div>
       <h3>Dirt track</h3>
       <label class="rng">Gravity <output id="oG"></output><input type="range" id="rG" min="1" max="9.8" step="0.1"></label>
-      <label class="rng">Steering sensitivity <output id="oS"></output><input type="range" id="rS" min="0.4" max="1.6" step="0.05"></label>
       <div class="seg" id="oppSeg"><button data-v="1">1 bot</button><button data-v="2">2 bots</button></div>
       <div class="seg" id="lapSeg"><button data-v="1">1 lap</button><button data-v="3">3 laps</button><button data-v="5">5 laps</button></div>
       <div class="seg"><button id="bRace">Start race</button></div>
@@ -216,11 +247,17 @@ html.xr .speed,html.xr .ico,html.xr .sub span,html.xr .steer{backdrop-filter:non
     </div>
   </section>
 
+  <section id="intro" hidden aria-label="Intro — tap to skip">
+    <div class="streaks"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="flash"></div>
+    <div class="logo"><div class="mark">AR<span>RC</span></div><div class="tag">micro racers</div></div>
+    <div class="tap">Tap to start</div>
+  </section>
   <section id="start">
     <div class="card">
       <div id="step1">
         <h1>Pick your racer</h1>
-        <p><small style="color:var(--hot)">Version 21</small><br>Swipe through the packs and tap one to choose it.</p>
+        <p><small style="color:var(--hot)">Version 22</small><br>Swipe through the packs and tap one to choose it.</p>
         <div class="sw" id="sw0"></div>
         <button id="goFloor" class="go">Next: choose your floor</button>
       </div>
@@ -270,12 +307,14 @@ const cam=new T.PerspectiveCamera(P.F,1,0.01,40);cam.rotation.order='YXZ';
 const world=new T.Group();scene.add(world);
 
 // soft studio reflections for paint, glass and chrome
-{const pm=new T.PMREMGenerator(renderer),es=new T.Scene(),sg=new T.SphereGeometry(10,32,16),cols=[],pos=sg.attributes.position;
+function envFor(r){const pm=new T.PMREMGenerator(r),es=new T.Scene(),sg=new T.SphereGeometry(10,32,16),cols=[],pos=sg.attributes.position;
  for(let i=0;i<pos.count;i++){const k=(pos.getY(i)/10+1)/2;cols.push(.16+.7*k,.17+.72*k,.18+.76*k)}
  sg.setAttribute('color',new T.Float32BufferAttribute(cols,3));
  es.add(new T.Mesh(sg,new T.MeshBasicMaterial({vertexColors:true,side:T.BackSide})));
  [[6,2,0,7,3,3],[4,4,-7,3,-2,2],[3,5,6,2,-5,1.6]].forEach(([w,h,x,y,z,b])=>{const m=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({color:new T.Color(b,b,b),side:T.DoubleSide}));m.position.set(x,y,z);m.lookAt(0,0,0);es.add(m)});
- scene.environment=pm.fromScene(es,.02).texture;pm.dispose()}
+ [[1.2,8,-5,4,5,2.6],[10,.6,0,1.2,-8,2.2]].forEach(([w,h,x,y,z,b])=>{const m=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({color:new T.Color(b,b,b),side:T.DoubleSide}));m.position.set(x,y,z);m.lookAt(0,0,0);es.add(m)});
+ const tex=pm.fromScene(es,.02).texture;pm.dispose();return tex}
+scene.environment=envFor(renderer);
 // building the reflections resets the clear colour to opaque black; make the 3D layer see-through again
 renderer.setClearColor(0x000000,0);
 scene.add(new T.HemisphereLight(0xffffff,0x6a645c,.55));
@@ -298,12 +337,14 @@ const ring=new T.Mesh(new T.RingGeometry(1,1.01,8),new T.MeshBasicMaterial({colo
 // toon shading ramp + bold ink outline
 const grad=(()=>{const t=new T.DataTexture(new Uint8Array([120,195,255]),3,1,T.RedFormat);t.minFilter=t.magFilter=T.NearestFilter;t.needsUpdate=true;return t})();
 const toon=(c,o)=>new T.MeshToonMaterial(Object.assign({color:c,gradientMap:grad},o||{}));
+// metallic-flake paint under a glossy clear coat, and real chrome — reflections come from the scene environment
+const metal=(c,o)=>new T.MeshPhysicalMaterial(Object.assign({color:c,metalness:.72,roughness:.3,clearcoat:1,clearcoatRoughness:.04,envMapIntensity:1.25},o||{}));
 const inkMat=new T.ShaderMaterial({uniforms:{w:{value:.0055}},side:T.BackSide,
  vertexShader:'uniform float w;void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position+normal*w,1.);}',
  fragmentShader:'void main(){gl_FragColor=vec4(.07,.07,.09,1.);}'});
 const M={head:toon(0xfff6d8,{emissive:0xfff0c0,emissiveIntensity:1}),tail:toon(0x660000,{emissive:0xff1a10,emissiveIntensity:.8}),
- rev:toon(0xdddddd,{emissive:0xffffff,emissiveIntensity:0}),dark:toon(0x2a2c31),tyre:toon(0x2b2b30),chrome:toon(0xeef3f7),
- glass:toon(0x9fdcff,{transparent:true,opacity:.5}),white:toon(0xffffff),black:toon(0x1c1d21),
+ rev:toon(0xdddddd,{emissive:0xffffff,emissiveIntensity:0}),dark:metal(0x2a2c31,{metalness:.5,roughness:.45,clearcoat:.4}),tyre:toon(0x2b2b30),chrome:metal(0xf2f5f8,{metalness:1,roughness:.08,clearcoat:0,envMapIntensity:1.5}),
+ glass:new T.MeshPhysicalMaterial({color:0x7fb8e0,metalness:.2,roughness:.03,clearcoat:1,transparent:true,opacity:.55,envMapIntensity:1.6}),white:toon(0xffffff),black:toon(0x1c1d21),
  lamp:toon(0xffe27a,{emissive:0xffcc33,emissiveIntensity:.7}),red:toon(0xff3030,{emissive:0xff0000,emissiveIntensity:0}),
  blue:toon(0x3a7bff,{emissive:0x0050ff,emissiveIntensity:0}),visor:toon(0x1e2a3a)};
 // outline geometry: same shape with smoothed normals so the ink line has no gaps at corners
@@ -398,7 +439,7 @@ const CARS=[
    part(new T.CylinderGeometry(.008,.008,.17,12),M.chrome,s*(hw+.008),.052,0,B,Math.PI/2)}rb(.18,.012,.03,pm,0,.12,-.215,B,.3)}}];
 
 function buildCar(sp,root){
- PAR=root;const pm=toon(sp.color),B=new T.Group();root.add(B);const F=[];
+ PAR=root;const pm=metal(sp.color),B=new T.Group();root.add(B);const F=[];
  const shell=sideExtrude(profileShell(sp),sp.W,sp.bev||.014,pm,B);const hw=shell.geometry.boundingBox.max.x;
  if(sp.cabin)sideExtrude(blobShape(sp.cabin),sp.cabW,.006,M.glass,B);
  // driver: helmet, visor and shoulders
@@ -410,7 +451,7 @@ function buildCar(sp,root){
   rb(.012,.008,.008,M.rev,s*tx*.45,ty-.004,tz,B,0,0,0,.003,false);revs.push(glow(0xffffff,s*tx*.45,ty-.004,tz-.008,.035,B))}
  sp.extras(B,hw,pm,F);
  // wheels
- const wr=sp.wr,tw=sp.tw,rim=toon(sp.rim);
+ const wr=sp.wr,tw=sp.tw,rim=metal(sp.rim,{metalness:.95,roughness:.16,clearcoat:.6});
  const tyreG=new T.LatheGeometry([[.6,-.5],[.86,-.5],[1,-.3],[1,.3],[.86,.5],[.6,.5]].map(([r,y])=>new T.Vector2(r*wr,y*tw)),26);tyreG.rotateZ(Math.PI/2);
  const rimG=new T.CylinderGeometry(.62*wr,.62*wr,tw*.92,20);rimG.rotateZ(Math.PI/2);
  const wheels=[],fronts=[];
@@ -447,7 +488,7 @@ function selectCar(i){
 let TR=null,TS=null,TC=null;const FW=260,FH=190,NF=36,sheets={};
 function thumbSetup(){if(TR)return true;try{TR=new T.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true})}catch(e){return false}
  TR.setSize(FW,FH);TR.outputColorSpace=T.SRGBColorSpace;TR.useLegacyLights=true;TR.setClearColor(0,0);
- TS=new T.Scene();TS.add(new T.HemisphereLight(0xffffff,0x6a645c,.75));const dl=new T.DirectionalLight(0xffffff,1.1);dl.position.set(1,2,1.5);TS.add(dl);
+ TS=new T.Scene();TS.environment=envFor(TR);TR.setClearColor(0,0);TS.add(new T.HemisphereLight(0xffffff,0x6a645c,.75));const dl=new T.DirectionalLight(0xffffff,1.1);dl.position.set(1,2,1.5);TS.add(dl);
  TC=new T.PerspectiveCamera(30,FW/FH,.01,10);TC.position.set(.62,.32,.7);TC.lookAt(0,.1,0);return true}
 // n frames of the car turning, drawn side by side into one sprite sheet
 function carFrames(i,n){const key=i+':'+n;if(sheets[key])return sheets[key];if(!thumbSetup())return null;
@@ -879,6 +920,31 @@ function shareInvite(){const url=location.origin+location.pathname+'#join-'+MP.c
  if(navigator.share)navigator.share({title:'AR RC race',text,url}).catch(()=>{});
  else if(navigator.clipboard)navigator.clipboard.writeText(url).then(()=>toast('Invite link copied',2500),()=>toast(url,8000));else toast(url,8000)}
 
+/* ---------- intro: the car rockets in, drifts to a stop, logo slams down ---------- */
+const INTRO={on:!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches),t:0,marked:0};
+function introStart(){if(!INTRO.on){$('intro').hidden=true;return}$('start').hidden=true;$('intro').hidden=false;$('intro').classList.add('go');document.body.classList.add('intro');
+ P.lights=true;putCar(0,-3.4,0);clearSkids()}
+function introEnd(){if(!INTRO.on)return;INTRO.on=false;document.body.classList.remove('intro');$('intro').classList.add('out');setTimeout(()=>{$('intro').hidden=true},450);
+ $('start').hidden=false;P.lights=store.lights??true;clearSkids();reset();requestAnimationFrame(()=>centerPack(false))}
+const easeOut=k=>1-Math.pow(1-clamp(k,0,1),3),easeIO=k=>{k=clamp(k,0,1);return k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2};
+function introTick(dt){const t=(INTRO.t+=dt);
+ let x=0,z,h=0,v=0,roll=0;
+ if(t<1.35){const k=t/1.35;z=-3.4+3.25*easeOut(k);v=3.4*(1-k)+1.2}                       // blast in towards the camera
+ else{const k=(t-1.35)/.85;h=-Math.PI*.55*easeOut(k);z=-.15+.15*easeOut(k);x=-.07*easeOut(k);v=1.6*(1-clamp(k,0,1));roll=.09*Math.sin(Math.PI*clamp(k,0,1))} // drift to a stop
+ S.x=x;S.z=z;S.h=h;S.y=0;S.air=false;S.vx=Math.sin(h)*v;S.vz=Math.cos(h)*v;
+ carPose(dt);S.spin+=(t<2.2?v+2:0)/WR*dt;wheels.forEach(w=>w.rotation.x=S.spin);fronts.forEach(p=>p.rotation.y=t>1.35&&t<2.1?.45:0);
+ body.rotation.z=roll;body.rotation.x=t<1.35?-.04:.02;
+ if(t>1.35&&t<2.15&&(INTRO.marked+=dt)>.018){INTRO.marked=0;const fx=Math.sin(h),fz=Math.cos(h),lx=Math.cos(h),lz=-Math.sin(h);for(const g of[1,-1])mark(x+lx*TRK*g-fx*AXL,z+lz*TRK*g-fz*AXL,h)}
+ M.head.emissiveIntensity=2.4;heads.forEach(s=>s.material.opacity=.95);pool.material.opacity=.35;spot.intensity=1.8;
+ tails.forEach(s=>{s.material.opacity=t>1.35&&t<2.2?1:.4});M.tail.emissiveIntensity=t>1.35&&t<2.2?4:1;
+ sun.position.set(S.x+.5,2,S.z+.4);sun.target.position.set(S.x,0,S.z);
+ // camera: low and close, then a slow orbit; a hard shake when the logo lands
+ const orb=t>2.2?(t-2.2)*.35:0,r=.5,cy=.07+(t>2.2?.03*easeIO((t-2.2)/1.2):0);
+ cam.position.set(Math.sin(.45+orb)*r,cy,Math.cos(.45+orb)*r);
+ if(t>2.2&&t<2.55){const a=(2.55-t)*.04;cam.position.x+=(Math.random()-.5)*a;cam.position.y+=(Math.random()-.5)*a}
+ cam.lookAt(t<1.35?0:x*.5,.03,t<1.35?Math.max(z,-1.2)*.3:z*.5);
+ if(t>4.6)introEnd()}
+
 /* ---------- physics ---------- */
 let braking=false,reversing=false,slide=0;
 function step(dt){
@@ -904,8 +970,8 @@ function step(dt){
  if(!gas&&!brake)vF*=Math.exp(-1.6*dt);
  vF-=vF*Math.abs(vF)*.06*dt;vF=clamp(vF,-VM*.4,VM);
  // on the dirt the wheels turn less and more slowly; the Setup slider scales both
- const dirt=!!TI,sk=P.stK,maxS=Math.min(dirt?.3*sk:.6,Math.atan(WB*(dirt?5*sk:11)/Math.max(.01,vF*vF)));
- S.steer+=(-s*maxS-S.steer)*(1-Math.exp(-(dirt?2.8*sk:12)*dt));
+ const dirt=!!TI,sk=P.stK,maxS=Math.min((dirt?.24:.48)*sk,Math.atan(WB*(dirt?4:8.5)*sk/Math.max(.01,vF*vF)));
+ S.steer+=(-s*maxS-S.steer)*(1-Math.exp(-(dirt?2.2:7)*sk*dt));
  vL*=Math.exp(-Math.max(3,15*CUR.g-Math.abs(vF)*Math.abs(s)*3.2/CUR.g)*dt);
  S.vx=fx*vF+lx*vL;S.vz=fz*vF+lz*vL;
  S.h+=vF*Math.tan(S.steer)/WB*dt;
@@ -1213,6 +1279,7 @@ const ro=new ResizeObserver(size);ro.observe(stage);size();
 buildPicker();selectCar(P.color);setSource('studio');
 $('goFloor').onclick=()=>{$('step1').hidden=true;$('step2').hidden=false};
 $('backCar').onclick=()=>{$('step2').hidden=true;$('step1').hidden=false;requestAnimationFrame(()=>centerPack(false))};
+$('intro').addEventListener('pointerdown',()=>{if(INTRO.t>.3)introEnd()});introStart();
 requestAnimationFrame(()=>centerPack(false));
 let last=0,hudT=0,h3T=0,errShown=false;
 function frameErr(e){console.error(e);if(!errShown){errShown=true;toast('Something went wrong: '+(e&&e.message||e),8000)}}
@@ -1221,6 +1288,7 @@ renderer.setAnimationLoop((t,frame)=>{
  if(frame&&hitSrc){const hs=frame.getHitTestResults(hitSrc);
   if(hs.length){xrHit=true;const pose=hs[0].getPose(renderer.xr.getReferenceSpace());reticle.visible=true;retM.opacity=placed?.25:.6;reticle.matrix.fromArray(pose.transform.matrix)}else reticle.visible=false}
  else reticle.visible=false;
+ if(INTRO.on&&!$('intro').hidden){try{introTick(dt)}catch(e){frameErr(e);introEnd()}renderer.render(scene,cam);return}
  if(hitSrc&&!xrHit&&xrT&&t&&performance.now()-xrT>8000){xrT=0;toast('Still looking for the floor — aim at a textured surface in good light and move the phone slowly side to side',6000)}
  if(frame&&XR.simple&&XR.ses){xrSimpleFrame(frame);if(t-h3T>70){h3T=t;drawHud()}}
  let gas=0;
